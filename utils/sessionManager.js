@@ -1,8 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config();
 
 async function login(page, account) {
-  await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
+  const loginUrl = process.env.INSTAGRAM_LOGIN_URL || 'https://www.instagram.com/accounts/login/';
+  await page.goto(loginUrl, { waitUntil: 'networkidle2' });
 
   await page.waitForSelector('input[name="username"]', { visible: true });
   await page.type('input[name="username"]', account.username, { delay: 100 });

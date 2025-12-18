@@ -66,7 +66,8 @@ function askUserToContinue(message) {
 
     try {
       console.log(`🌐 Navigating to Instagram login page for ${username}...`);
-      await page.goto('https://www.instagram.com/accounts/login/', {
+      const loginUrl = process.env.INSTAGRAM_LOGIN_URL || 'https://instagram.com/accounts/login/';
+      await page.goto(loginUrl, {
         waitUntil: 'networkidle2',
         timeout: 60000,
       });
