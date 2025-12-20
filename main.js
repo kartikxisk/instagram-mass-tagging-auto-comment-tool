@@ -8,7 +8,7 @@ const { setupProxyArgs, applyProxyAuthentication } = require('./utils/proxySetup
 require('dotenv').config();
 
 const POST_URL = process.env.POST_URL;
-const PARALLEL_ACCOUNTS = parseInt(process.env.PARALLEL_ACCOUNTS) || 3;
+const PARALLEL_ACCOUNTS = Number.parseInt(process.env.PARALLEL_ACCOUNTS) || 3;
 
 /**
  * Posts a comment tagging multiple usernames properly.
