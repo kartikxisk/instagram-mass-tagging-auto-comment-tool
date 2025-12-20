@@ -65,25 +65,59 @@ const stats = new SessionStats();
 // Global comment counter for long pause trigger
 let globalCommentCount = 0;
 
+// Track proxy usage per account for rotation
+const accountProxyIndex = new Map();
+
 /**
- * Get proxy for an account (either assigned or from pool)
+ * Get proxy for an account (supports multiple proxies per account)
+ * Priority: 1. Account-specific proxies (rotating), 2. Global proxy pool (rotating)
  * @param {Object} account - Account object
- * @param {number} index - Account index for proxy rotation
+ * @param {number} accountIndex - Account index for global pool rotation
  * @returns {Object|null} - Proxy configuration
  */
-function getProxyForAccount(account, index) {
-  // If account has its own proxy, use it
+function getProxyForAccount(account, accountIndex) {
+  // If account has its own proxy array, rotate through them
+  if (account.proxies && Array.isArray(account.proxies) && account.proxies.length > 0) {
+    // Get current index for this account
+    const currentIndex = accountProxyIndex.get(account.username) || 0;
+    const proxy = account.proxies[currentIndex % account.proxies.length];
+    
+    // Update index for next time
+    accountProxyIndex.set(account.username, currentIndex + 1);
+    
+    console.log(`🔄 Using account-specific proxy ${currentIndex % account.proxies.length + 1}/${account.proxies.length}`);
+    return proxy;
+  }
+  
+  // If account has a single proxy object, use it
   if (account.proxy && account.proxy.address) {
     return account.proxy;
   }
   
-  // Otherwise, rotate from proxy pool
+  // Otherwise, rotate from global proxy pool
   const proxies = config.proxies || [];
   if (proxies.length > 0) {
-    return proxies[index % proxies.length];
+    const proxyIndex = accountIndex % proxies.length;
+    console.log(`🔄 Using global proxy pool ${proxyIndex + 1}/${proxies.length}`);
+    return proxies[proxyIndex];
   }
   
   return null;
+}
+
+/**
+ * Get next proxy for an account (for retries or multiple sessions)
+ * @param {Object} account - Account object
+ * @param {number} accountIndex - Account index for global pool rotation
+ * @returns {Object|null} - Next proxy configuration
+ */
+function getNextProxyForAccount(account, accountIndex) {
+  // Force rotation to next proxy
+  if (account.proxies && Array.isArray(account.proxies) && account.proxies.length > 0) {
+    const currentIndex = accountProxyIndex.get(account.username) || 0;
+    accountProxyIndex.set(account.username, currentIndex + 1);
+  }
+  return getProxyForAccount(account, accountIndex + 1);
 }
 
 /**

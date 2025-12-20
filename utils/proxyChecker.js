@@ -13,22 +13,35 @@ const config = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf-8'));
 const accounts = Array.isArray(config) ? config : (config.accounts || []);
 const proxyPool = Array.isArray(config) ? [] : (config.proxies || []);
 
-// Get proxies from accounts (if they have individual proxies)
-const accountProxies = accounts
-  .filter(acc => acc.proxy && acc.proxy.address && acc.proxy.port)
-  .map(acc => {
-    const { proxy } = acc;
-    return {
-      label: `${proxy.address}:${proxy.port} (account: ${acc.username})`,
-      proxy: proxy
-    };
-  });
+// Get proxies from accounts - support both single proxy and multiple proxies
+const accountProxies = [];
 
-// Get proxies from proxy pool
+accounts.forEach(acc => {
+  // Check for multiple proxies array
+  if (acc.proxies && Array.isArray(acc.proxies)) {
+    acc.proxies.forEach((proxy, idx) => {
+      if (proxy.address && proxy.port) {
+        accountProxies.push({
+          label: `${proxy.address}:${proxy.port} (account: ${acc.username} [${idx + 1}/${acc.proxies.length}])`,
+          proxy: proxy
+        });
+      }
+    });
+  }
+  // Check for single proxy object
+  else if (acc.proxy && acc.proxy.address && acc.proxy.port) {
+    accountProxies.push({
+      label: `${acc.proxy.address}:${acc.proxy.port} (account: ${acc.username})`,
+      proxy: acc.proxy
+    });
+  }
+});
+
+// Get proxies from global proxy pool
 const poolProxies = proxyPool
   .filter(proxy => proxy.address && proxy.port)
   .map(proxy => ({
-    label: `${proxy.address}:${proxy.port} (pool)`,
+    label: `${proxy.address}:${proxy.port} (global pool)`,
     proxy: proxy
   }));
 

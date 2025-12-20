@@ -100,11 +100,38 @@ Edit `config/accounts.json`:
   "accounts": [
     {
       "username": "account1",
-      "password": "password1",
+      "password": "password1"
     },
     {
       "username": "account2",
-      "password": "password2"
+      "password": "password2",
+      "proxy": {
+        "protocol": "http",
+        "address": "single.proxy.ip",
+        "port": 8080,
+        "username": "user",
+        "password": "pass"
+      }
+    },
+    {
+      "username": "account3",
+      "password": "password3",
+      "proxies": [
+        {
+          "protocol": "http",
+          "address": "proxy1.ip",
+          "port": 8080,
+          "username": "user",
+          "password": "pass"
+        },
+        {
+          "protocol": "http",
+          "address": "proxy2.ip",
+          "port": 8081,
+          "username": "user",
+          "password": "pass"
+        }
+      ]
     }
   ],
   "proxies": [
@@ -127,9 +154,47 @@ Edit `config/accounts.json`:
 }
 ```
 
-#### Proxy Assignment
-- If an account has its own `proxy` object, it uses that proxy
-- Otherwise, proxies rotate from the `proxies` array
+#### Proxy Assignment (Priority Order)
+
+| Priority | Config | Description |
+|----------|--------|-------------|
+| 1️⃣ | `account.proxies[]` | Multiple proxies per account (rotating) |
+| 2️⃣ | `account.proxy` | Single proxy for account |
+| 3️⃣ | `proxies[]` | Global proxy pool (rotating) |
+
+#### Examples:
+
+**Account with multiple proxies (rotating):**
+```json
+{
+  "username": "myaccount",
+  "password": "mypass",
+  "proxies": [
+    { "protocol": "http", "address": "1.1.1.1", "port": 8080, "username": "u", "password": "p" },
+    { "protocol": "http", "address": "2.2.2.2", "port": 8080, "username": "u", "password": "p" },
+    { "protocol": "http", "address": "3.3.3.3", "port": 8080, "username": "u", "password": "p" }
+  ]
+}
+```
+→ Each session/comment cycle rotates: proxy1 → proxy2 → proxy3 → proxy1...
+
+**Account with single proxy:**
+```json
+{
+  "username": "myaccount",
+  "password": "mypass",
+  "proxy": { "protocol": "http", "address": "1.1.1.1", "port": 8080, "username": "u", "password": "p" }
+}
+```
+
+**Account using global pool:**
+```json
+{
+  "username": "myaccount",
+  "password": "mypass"
+}
+```
+→ Uses proxies from the global `proxies` array
 
 ---
 
