@@ -70,7 +70,13 @@ npm install
 pnpm install
 ```
 
-### 2. Create `.env` File
+### 2. Install Browser (if needed)
+
+```bash
+npm run browser
+```
+
+### 3. Create `.env` File
 
 Copy `.env.example` to `.env` and configure:
 
@@ -127,7 +133,19 @@ Edit `config/accounts.json`:
 
 ---
 
-## 📝 Preparing the Excel File
+## � Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run mass-tag` | 🚀 Run mass tagging automation (recommended) |
+| `npm start` | Run simple/original automation |
+| `npm run proxy-check` | ✅ Test all proxies before running |
+| `npm run browser` | Install Puppeteer Chrome browser |
+| `npm run fix` | Run fix script for common issues |
+
+---
+
+## �📝 Preparing the Excel File
 
 Your file should be `data/usernames.xlsx` with these columns:
 
@@ -164,6 +182,19 @@ npm start
 # or
 node main.js
 ```
+
+### Check Proxies
+
+```bash
+npm run proxy-check
+# or
+node utils/proxyChecker.js
+```
+
+Verify all your proxies are working before running the main script:
+- Tests each proxy from `proxies` array and individual account proxies
+- Shows ✅ Success or ❌ Failed for each proxy
+- Saves results to `logs/proxy_check_log.csv`
 
 ---
 
