@@ -213,6 +213,66 @@ Detailed CSV log of every comment attempt:
 
 ---
 
+## 📊 Daily Capacity Calculator
+
+### Per Account (Safe Limits)
+| Metric | Value | Calculation |
+|--------|-------|-------------|
+| Tags per account/day | **60 tags** | Safety limit |
+| Comments per account/day | **5-7 comments** | 60 tags ÷ 10-12 tags/comment |
+| Tags per comment | **10-12 tags** | Optimal for engagement |
+| Time per account | **5-15 minutes** | Session duration |
+
+### With 100 Accounts (1 Batch)
+| Metric | Min | Max | Average |
+|--------|-----|-----|---------|
+| Total tags/day | 6,000 | 6,000 | **6,000 tags** |
+| Total comments/day | 500 | 700 | **~600 comments** |
+| Time required | ~8 hrs | ~25 hrs | **~12-15 hrs** |
+
+### With 500 Accounts (5 Batches)
+| Metric | Min | Max | Average |
+|--------|-----|-----|---------|
+| Total tags/day | 30,000 | 30,000 | **30,000 tags** |
+| Total comments/day | 2,500 | 3,500 | **~3,000 comments** |
+| Time required | ~40 hrs | ~125 hrs | **~60-75 hrs** |
+
+### With 700 Accounts (7 Batches)
+| Metric | Min | Max | Average |
+|--------|-----|-----|---------|
+| Total tags/day | 42,000 | 42,000 | **42,000 tags** |
+| Total comments/day | 3,500 | 4,900 | **~4,200 comments** |
+| Time required | ~56 hrs | ~175 hrs | **~85-105 hrs** |
+
+### ⏱️ Time Breakdown (Per Account)
+| Action | Min Time | Max Time | Notes |
+|--------|----------|----------|-------|
+| Login + Setup | 30s | 60s | With cookies: faster |
+| Navigate to post | 5s | 15s | Network dependent |
+| Per comment cycle | 35s | 120s | Safety delay |
+| 6 comments total | 3.5 min | 12 min | Per account |
+| **Total per account** | **~5 min** | **~15 min** | Including delays |
+
+### 📈 Scaling Example
+
+**Goal: Tag 10,000 users in one day**
+
+| Setup | Accounts Needed | Comments Needed | Est. Time |
+|-------|-----------------|-----------------|-----------|
+| 10 tags/comment | 167 accounts | ~1,000 comments | ~28 hrs |
+| 12 tags/comment | 139 accounts | ~834 comments | ~23 hrs |
+
+**Goal: Tag 30,000 users in one day**
+
+| Setup | Accounts Needed | Comments Needed | Est. Time |
+|-------|-----------------|-----------------|-----------|
+| 10 tags/comment | 500 accounts | ~3,000 comments | ~83 hrs |
+| 12 tags/comment | 417 accounts | ~2,500 comments | ~69 hrs |
+
+> ⚠️ **Note**: Running multiple instances in parallel can reduce time significantly. For example, running 3 instances can process 3x faster.
+
+---
+
 ## ⚠️ Safety Rules Implemented
 
 | Rule | Implementation |
