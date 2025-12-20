@@ -1,6 +1,13 @@
 # 🚀 Instagram Mass Tagging Automation Tool
 
-A powerful Node.js automation using Puppeteer that logs into multiple Instagram accounts and posts comments containing user tags on a specific reel/post. The automation respects Instagram safety limits to avoid action blocks, shadowban, or account bans.
+A powerful Node.js automation using Puppeteer that logs into multiple Instagram accounts and posts comments containing user tags on a specific reel/post. The a## 📜 Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm start` | 🚀 Run mass tagging automation |
+| `npm run proxy-check` | ✅ Test all proxies before running |
+| `npm run browser` | Install Puppeteer Chrome browser |
+| `npm run fix` | Run fix script for common issues | respects Instagram safety limits to avoid action blocks, shadowban, or account bans.
 
 ---
 
@@ -56,8 +63,7 @@ instagram-mass-tagger/
 │   ├── sessionManager.js     # Cookie/session management
 │   ├── tagDistribution.js    # Tag distribution logic
 │   └── userAgents.js         # Random user agent generator
-├── main.js                   # Original simple automation
-├── massTag.js               # 🆕 Mass tagging automation (main script)
+├── main.js                   # 🚀 Main automation script
 ├── .env                      # Environment config
 ├── .env.example              # Example environment config
 └── package.json
@@ -231,12 +237,12 @@ Your file should be `data/usernames.xlsx` with these columns:
 
 ## ▶️ Running the Tool
 
-### Mass Tagging Automation (Recommended)
+### Start Mass Tagging Automation
 
 ```bash
-npm run mass-tag
+npm start
 # or
-node massTag.js
+node main.js
 ```
 
 This runs the full-featured mass tagging automation with:
@@ -244,14 +250,6 @@ This runs the full-featured mass tagging automation with:
 - Safety delays and long pauses
 - Human behavior simulation
 - Comprehensive logging
-
-### Simple Mode (Original)
-
-```bash
-npm start
-# or
-node main.js
-```
 
 ### Check Proxies
 
