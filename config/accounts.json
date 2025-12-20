@@ -1,13 +1,94 @@
-[
-  {
-    "username": "joyfultourismofficial",
-    "password": "joyful@@#^^2023",
-    "proxy": {
+{
+  "accounts": [
+    {
+      "username": "joyfultourismofficial",
+      "password": "joyful@@#^^2023",
+    }
+  ],
+  "proxies": [
+    {
       "protocol": "http",
       "address": "142.111.48.253",
       "port": 7030,
       "username": "rubjznrn",
       "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "31.59.20.176",
+      "port": 6754,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "23.95.150.145",
+      "port": 6114,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "198.23.239.134",
+      "port": 6540,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "107.172.163.27",
+      "port": 6543,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "198.105.121.200",
+      "port": 6462,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "64.137.96.74",
+      "port": 6641,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "84.247.60.125",
+      "port": 6095,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "216.10.27.159",
+      "port": 6837,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
+    },
+    {
+      "protocol": "http",
+      "address": "142.111.67.146",
+      "port": 5611,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
     }
+  ],
+  "targetPost": "",
+  "settings": {
+    "accountsPerBatch": 100,
+    "tagsPerAccount": 60,
+    "tagsPerComment": {
+      "min": 10,
+      "max": 12
+    },
+    "commentsPerAccount": {
+      "min": 5,
+      "max": 7
+    },
+    "pauseAfterComments": 50
   }
-]
+}

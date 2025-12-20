@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer');
 const fs = require('fs');
 const { createSession } = require('./utils/sessionManager');
 const { loadAllUsernames, getNextBatch } = require('./utils/parseExcel');
-const { delay } = require('./utils/delay');
+const { delay, randomDelay } = require('./utils/delay');
 const { logMention } = require('./utils/logger');
 const { setupProxyArgs, applyProxyAuthentication } = require('./utils/proxySetup');
 require('dotenv').config();
@@ -49,6 +49,7 @@ async function postComment(page, usernamesBatch, account) {
         account: account.username,
         status: 'Failed',
         comment: usernamesBatch.join(', '),
+        tagsCount: usernamesBatch.length,
         error: popupText
       });
     } else {
@@ -56,17 +57,19 @@ async function postComment(page, usernamesBatch, account) {
       logMention({
         account: account.username,
         status: 'Success',
-        comment: usernamesBatch.join(', ')
+        comment: usernamesBatch.join(', '),
+        tagsCount: usernamesBatch.length
       });
     }
 
-    await delay(5000);
+    await delay(5000, true);
   } catch (error) {
     console.error(`❌ Exception while posting comment for ${account.username}: ${error.message}`);
     logMention({
       account: account.username,
       status: 'Failed',
       comment: usernamesBatch.join(', '),
+      tagsCount: usernamesBatch.length,
       error: error.message
     });
   }
@@ -128,7 +131,10 @@ async function commentWithAccount(account, usernamesBatch) {
  */
 (async () => {
   try {
-    const accounts = JSON.parse(fs.readFileSync('./config/accounts.json'));
+    const config = JSON.parse(fs.readFileSync('./config/accounts.json'));
+    // Support both old format (array) and new format (object with accounts property)
+    const accounts = Array.isArray(config) ? config : (config.accounts || []);
+    
     loadAllUsernames('./data/usernames.xlsx');
 
     let accountIndex = 0;
@@ -147,7 +153,7 @@ async function commentWithAccount(account, usernamesBatch) {
         tasks.push(commentWithAccount(currentAccount, batch));
 
         accountIndex++;
-        await delay(1000);
+        await delay(1000, true);
       }
 
       if (tasks.length === 0) {
@@ -158,7 +164,7 @@ async function commentWithAccount(account, usernamesBatch) {
       await Promise.all(tasks);
 
       console.log('⏸️ Waiting before next round...');
-      await delay(3000);
+      await delay(3000, true);
     }
 
   } catch (err) {

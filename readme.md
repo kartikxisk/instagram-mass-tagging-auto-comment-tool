@@ -1,99 +1,142 @@
-# 🚀 Instagram Comment Automation Tool
+# 🚀 Instagram Mass Tagging Automation Tool
 
-This tool automates Instagram comments using multiple accounts, with support for proxy handling, account rotation, session reuse via cookies, and controlled tagging of usernames from an Excel sheet.
+A powerful Node.js automation using Puppeteer that logs into multiple Instagram accounts and posts comments containing user tags on a specific reel/post. The automation respects Instagram safety limits to avoid action blocks, shadowban, or account bans.
 
 ---
 
 ## 📆 Features
 
-- Automated comment posting on a target Instagram post.
-- Tags multiple usernames per comment from an Excel file.
-- Respects Instagram limits with randomized human-like delays.
-- Supports proxy authentication (username/password).
-- Account rotation and concurrency control.
-- Logs all activity to a CSV file with status and error tracking.
-- Uses cookies for faster login (avoids repeated credential login).
+### Core Features
+- **Multi-Account Support**: Handle 500-700+ accounts
+- **Batch Processing**: Accounts divided into groups of 100 per batch
+- **Smart Tag Distribution**: 60 unique tags per account, 10-12 tags per comment
+- **Safety-First Approach**: Built-in delays and anti-detection measures
+- **Proxy Support**: Full HTTP/SOCKS5 proxy support with authentication
+- **Session Persistence**: Cookie storage and reuse for faster logins
+- **Comprehensive Logging**: CSV logs + session summaries
+
+### Safety Features
+- ✅ Random delays between comments (35-120 seconds)
+- ✅ Random delays between accounts (5-20 seconds)
+- ✅ Long pause after 50 comments (10-20 minutes)
+- ✅ Session duration limits (5-15 minutes per account)
+- ✅ Random typing speed for human-like behavior
+- ✅ Random scrolling before commenting
+- ✅ Different user-agent per account
+- ✅ Action blocked detection → auto-skip account
+- ✅ Checkpoint detection → auto-skip account
+- ✅ Stealth plugin to avoid bot detection
 
 ---
 
 ## 📁 Folder Structure
 
 ```
-insta-comment-automation/
+instagram-mass-tagger/
 ├── config/
-│   └── accounts.json         # Instagram accounts with optional proxy info
+│   └── accounts.json         # Accounts + proxies configuration
 ├── data/
-│   └── usernames.xlsx        # Excel file with mentionable usernames
+│   └── usernames.xlsx        # Excel file with usernames to tag
 ├── cookies/
-│   └── account1.json         # Session cookies per account
+│   └── [username].json       # Session cookies per account
 ├── logs/
-│   └── mention_logs.csv      # CSV log of all comments posted
-├── manual-login/
-│   └── manual-login.js       # Manual login utility
+│   ├── mention_logs.csv      # Detailed log of all comments
+│   └── session_summary.json  # Session statistics
 ├── utils/
-│   ├── parseExcel.js         # Excel parsing and batching logic
-│   ├── sessionManager.js     # Cookie-based session handling
-│   ├── delay.js              # Random delay utility
-│   ├── logger.js             # Logs status to CSV
-│   └── proxyChecker.js       # Validates proxy before using
-├── main.js                   # Main control logic (entry point)
-├── .env                      # Environment config (POST URL etc.)
-├── .gitignore
-├── package.json
-└── README.md
+│   ├── delay.js              # Delay utilities (random, comment, account delays)
+│   ├── humanBehavior.js      # Human-like behavior simulation
+│   ├── logger.js             # Logging and statistics tracking
+│   ├── parseExcel.js         # Excel parsing and batching
+│   ├── proxySetup.js         # Proxy configuration
+│   ├── sessionManager.js     # Cookie/session management
+│   ├── tagDistribution.js    # Tag distribution logic
+│   └── userAgents.js         # Random user agent generator
+├── main.js                   # Original simple automation
+├── massTag.js               # 🆕 Mass tagging automation (main script)
+├── .env                      # Environment config
+├── .env.example              # Example environment config
+└── package.json
 ```
 
 ---
 
 ## 🛠️ Setup
 
-### 1. Download Project Files
-
-- Download the ZIP 
-- Extract it to your desired location.
-
-### 2. Install Dependencies
+### 1. Install Dependencies
 
 ```bash
 npm install
+# or
+pnpm install
 ```
 
-### 3. Create `.env` File
+### 2. Create `.env` File
+
+Copy `.env.example` to `.env` and configure:
 
 ```ini
-POST_URL=https://www.instagram.com/p/xyz123/
-PARALLEL_ACCOUNTS=3
-ACCOUNT_BATCH_SIZE=5
+# Target Instagram Post/Reel URL
+POST_URL=https://www.instagram.com/reel/YOUR_REEL_ID/
+
+# Instagram Login URL (usually don't change)
+INSTAGRAM_LOGIN_URL=https://www.instagram.com/accounts/login/
+
+# Debug mode
+DEBUG=false
 ```
 
-> Use `.env.example` as a reference.
+### 3. Configure Accounts & Proxies
 
-### 4. Add Your Accounts
-
-In `config/accounts.json`:
+Edit `config/accounts.json`:
 
 ```json
-[
-  {
-    "username": "your_instagram_username",
-    "password": "your_password",
-    "proxy": {
-      "address": "127.0.0.1",
-      "port": "8080",
-      "username": "proxy_user",
-      "password": "proxy_pass"
+{
+  "accounts": [
+    {
+      "username": "account1",
+      "password": "password1",
+      "proxy": {
+        "protocol": "http",
+        "address": "142.111.48.253",
+        "port": 7030,
+        "username": "proxyuser",
+        "password": "proxypass"
+      }
+    },
+    {
+      "username": "account2",
+      "password": "password2"
     }
+  ],
+  "proxies": [
+    {
+      "protocol": "http",
+      "address": "142.111.48.253",
+      "port": 7030,
+      "username": "proxyuser",
+      "password": "proxypass"
+    }
+  ],
+  "targetPost": "https://www.instagram.com/reel/YOUR_REEL_ID/",
+  "settings": {
+    "accountsPerBatch": 100,
+    "tagsPerAccount": 60,
+    "tagsPerComment": { "min": 10, "max": 12 },
+    "commentsPerAccount": { "min": 5, "max": 7 },
+    "pauseAfterComments": 50
   }
-]
+}
 ```
 
-You can omit the `"proxy"` block if not using a proxy.
+#### Proxy Assignment
+- If an account has its own `proxy` object, it uses that proxy
+- Otherwise, proxies rotate from the `proxies` array
 
 ---
 
 ## 📝 Preparing the Excel File
-Your file name should be `usernames.xlsx` in data folder
-Your Excel (`usernames.xlsx`) should have the following columns:
+
+Your file should be `data/usernames.xlsx` with these columns:
 
 | Username     | Is Mentionable |
 |--------------|----------------|
@@ -107,30 +150,121 @@ Your Excel (`usernames.xlsx`) should have the following columns:
 
 ## ▶️ Running the Tool
 
+### Mass Tagging Automation (Recommended)
+
 ```bash
+npm run mass-tag
+# or
+node massTag.js
+```
+
+This runs the full-featured mass tagging automation with:
+- Batch processing (100 accounts per batch)
+- Safety delays and long pauses
+- Human behavior simulation
+- Comprehensive logging
+
+### Simple Mode (Original)
+
+```bash
+npm start
+# or
 node main.js
 ```
 
-It will:
-
-- Load accounts and usernames.
-- Open browser sessions with proxy.
-- Rotate accounts and comment batches.
-- Tag usernames from Excel on the target post.
-- Log all activity to `logs/mention_logs.csv`.
-
 ---
 
-## 🔐 Manual Login (First Time or To Avoid Challenges)
+## 🔐 Manual Login (First Time or Challenge)
 
-If Instagram prompts for checkpoint/challenge or cookie sessions are missing:
+If Instagram prompts for checkpoint/challenge:
 
 ```bash
 node manual-login/manual-login.js
 ```
 
-1. The browser will open for each account one by one.
-2. Manually log in to each account.
+1. Browser opens for each account
+2. Manually complete login/verification
+3. Cookies are saved automatically
+
+---
+
+## 📊 Logs & Statistics
+
+### Mention Logs (`logs/mention_logs.csv`)
+Detailed CSV log of every comment attempt:
+- Timestamp
+- Account username
+- Proxy used
+- Status (Success/Failed/Blocked/Checkpoint)
+- Comment content
+- Tags count
+- Error message
+
+### Session Summary (`logs/session_summary.json`)
+```json
+{
+  "startTime": "2024-12-20T10:00:00.000Z",
+  "endTime": "2024-12-20T14:30:00.000Z",
+  "durationMinutes": 270,
+  "accountsProcessed": 150,
+  "totalComments": 750,
+  "successfulComments": 720,
+  "failedComments": 30,
+  "successRate": 96,
+  "totalTags": 7920,
+  "blockedAccounts": 3,
+  "checkpointAccounts": 2,
+  "loginFailures": 5
+}
+```
+
+---
+
+## ⚠️ Safety Rules Implemented
+
+| Rule | Implementation |
+|------|----------------|
+| Comment delay | Random 35-120 seconds |
+| Account delay | Random 5-20 seconds |
+| Long pause | 10-20 min after every 50 comments |
+| Session limit | 5-15 minutes per account |
+| Typing speed | Random delays between keystrokes |
+| Scrolling | Random scroll before commenting |
+| User agents | Different per account |
+| Blocked detection | Auto-skip blocked accounts |
+| Checkpoint detection | Auto-skip checkpoint accounts |
+
+---
+
+## 🛡️ Best Practices
+
+1. **Warm up accounts** - Use manual login first for new accounts
+2. **Use quality proxies** - Residential proxies work best
+3. **Don't rush** - Let the safety delays do their job
+4. **Monitor logs** - Check for blocked/checkpoint accounts
+5. **Rotate proxies** - Don't use same proxy for too many accounts
+6. **Limit daily usage** - Don't exceed 60 tags per account per day
+
+---
+
+## 🔧 Troubleshooting
+
+### "Action Blocked" Errors
+- Account may be flagged, let it rest for 24-48 hours
+- Try using a different proxy
+- Use manual login to verify the account
+
+### Checkpoint Required
+- Run manual login script
+- Complete verification manually
+- Cookies will be saved for next run
+
+### Login Failures
+- Verify credentials in accounts.json
+- Check if proxy is working
+- Account may be disabled/locked
+
+---
 3. If prompted, complete any checkpoint/challenge.
 4. Timeout per login session is configurable via `.env` (`ACCOUNT_VERIFICATION_TIME`).
 5. After login, cookies are auto-saved to `cookies/`.

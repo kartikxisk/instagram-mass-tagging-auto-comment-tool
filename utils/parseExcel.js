@@ -9,8 +9,9 @@ let currentIndex = 0;
  * Loads all mentionable usernames from Excel file.
  *
  * @param {string} filepath - Path to the Excel file.
+ * @param {boolean} reset - Whether to reset the index
  */
-function loadAllUsernames(filepath) {
+function loadAllUsernames(filepath, reset = true) {
   try {
     const workbook = xlsx.readFile(filepath);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -30,12 +31,16 @@ function loadAllUsernames(filepath) {
       .map(row => (row['Username'] || '').trim())
       .filter(Boolean); // removes empty or undefined usernames
 
-    currentIndex = 0;
+    if (reset) {
+      currentIndex = 0;
+    }
 
     console.log(`✅ Loaded ${allUsernames.length} mentionable usernames.`);
+    return allUsernames;
   } catch (error) {
     console.error('❌ Error reading Excel file:', error.message);
     allUsernames = [];
+    return [];
   }
 }
 
@@ -54,4 +59,42 @@ function getNextBatch(count = process.env.ACCOUNT_BATCH_SIZE || 5) {
   return batch;
 }
 
-module.exports = { loadAllUsernames, getNextBatch };
+/**
+ * Get all loaded usernames
+ * @returns {string[]} Array of all usernames
+ */
+function getAllUsernames() {
+  return [...allUsernames];
+}
+
+/**
+ * Reset the batch index
+ */
+function resetIndex() {
+  currentIndex = 0;
+}
+
+/**
+ * Get remaining usernames count
+ * @returns {number}
+ */
+function getRemainingCount() {
+  return Math.max(0, allUsernames.length - currentIndex);
+}
+
+/**
+ * Get total usernames count
+ * @returns {number}
+ */
+function getTotalCount() {
+  return allUsernames.length;
+}
+
+module.exports = { 
+  loadAllUsernames, 
+  getNextBatch, 
+  getAllUsernames, 
+  resetIndex,
+  getRemainingCount,
+  getTotalCount
+};
