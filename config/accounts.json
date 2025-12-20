@@ -3,10 +3,11 @@
     "username": "joyfultourismofficial",
     "password": "joyful@@#^^2023",
     "proxy": {
-      "address": "dc.oxylabs.io",
-      "port": "8002",
-      "username": "user-diksha_wnEII-country-US",
-      "password": "Xisk______12"
+      "protocol": "http",
+      "address": "142.111.48.253",
+      "port": 7030,
+      "username": "rubjznrn",
+      "password": "ihdzbirrms7a"
     }
   }
 ]

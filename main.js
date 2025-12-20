@@ -4,6 +4,7 @@ const { createSession } = require('./utils/sessionManager');
 const { loadAllUsernames, getNextBatch } = require('./utils/parseExcel');
 const { delay } = require('./utils/delay');
 const { logMention } = require('./utils/logger');
+const { setupProxyArgs, applyProxyAuthentication } = require('./utils/proxySetup');
 require('dotenv').config();
 
 const POST_URL = process.env.POST_URL;
@@ -15,7 +16,7 @@ const PARALLEL_ACCOUNTS = parseInt(process.env.PARALLEL_ACCOUNTS) || 3;
 async function postComment(page, usernamesBatch, account) {
   try {
     const commentAreaSelector = 'textarea[aria-label="Add a comment…"]';
-    await page.waitForSelector(commentAreaSelector, { visible: true });
+    await page.waitForSelector(commentAreaSelector, { visible: true, timeout: 20000 });
     const textarea = await page.$(commentAreaSelector);
     await textarea.focus();
 
@@ -75,37 +76,42 @@ async function postComment(page, usernamesBatch, account) {
  * Logs in with a given account and posts the comment.
  */
 async function commentWithAccount(account, usernamesBatch) {
-  const proxy = account.proxy;
   const launchOptions = {
     headless: false,
-    args: [],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage'
+    ],
     defaultViewport: null
   };
 
-  // Apply proxy if defined
-  if (proxy && proxy.address && proxy.port) {
-    launchOptions.args.push(`--proxy-server=${proxy.address}:${proxy.port}`);
-  }
+  // Setup proxy configuration
+  const { launchArgs, authenticateConfig } = setupProxyArgs(account.proxy);
+  launchOptions.args.push(...launchArgs);
 
   const browser = await puppeteer.launch(launchOptions);
   const page = await browser.newPage();
 
   try {
-    // If proxy requires authentication
-    if (proxy && proxy.username && proxy.password) {
-      await page.authenticate({
-        username: proxy.username,
-        password: proxy.password
-      });
+    // Apply proxy authentication if needed
+    if (authenticateConfig) {
+      await applyProxyAuthentication(page, authenticateConfig, account.username);
     }
 
     console.log(`\n🔐 Logging in with account: ${account.username}`);
     await createSession(page, account);
 
     console.log(`➡️ Navigating to post...`);
-    await page.goto(POST_URL, { waitUntil: 'networkidle2' });
+    await page.goto(POST_URL, { 
+      waitUntil: 'networkidle2',
+      timeout: 60000 
+    });
 
-    await page.waitForSelector('textarea[aria-label="Add a comment…"]', { visible: true });
+    await page.waitForSelector('textarea[aria-label="Add a comment…"]', { 
+      visible: true,
+      timeout: 20000
+    });
     console.log(`📢 Ready to post comment with ${account.username}`);
 
     await postComment(page, usernamesBatch, account);
