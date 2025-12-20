@@ -44,24 +44,34 @@ function getRandomTagsForAccount(allTags, count = 60) {
 
 /**
  * Generate comment batches for an account
- * Each account gets 60 unique tags, split into 5-7 comments of 10-12 tags each
+ * Each account gets unique tags, split into comments based on settings
  * @param {string[]} allTags - All available tags
- * @param {number} tagsPerAccount - Total tags per account (default 60)
- * @param {number} tagsPerComment - Tags per comment (default 10-12, randomly chosen)
+ * @param {Object} config - Configuration object with settings
+ * @param {number} config.tagsPerAccount - Total tags per account (default 60)
+ * @param {Object} config.tagsPerComment - Tags per comment settings
+ * @param {number} config.tagsPerComment.min - Minimum tags per comment (default 10)
+ * @param {number} config.tagsPerComment.max - Maximum tags per comment (default 12)
  * @returns {Object} - { tags: string[], commentBatches: string[][] }
  */
-function generateAccountCommentBatches(allTags, tagsPerAccount = 60) {
+function generateAccountCommentBatches(allTags, config = {}) {
+  const tagsPerAccount = config.tagsPerAccount || 60;
+  const minTagsPerComment = config.tagsPerComment?.min || 10;
+  const maxTagsPerComment = config.tagsPerComment?.max || 12;
+  
   const accountTags = getRandomTagsForAccount(allTags, tagsPerAccount);
   const commentBatches = [];
   let remaining = [...accountTags];
   
   while (remaining.length > 0) {
-    // Random size between 10-12 tags per comment
-    const batchSize = Math.floor(Math.random() * 3) + 10; // 10, 11, or 12
+    // Random size between min and max tags per comment
+    const range = maxTagsPerComment - minTagsPerComment + 1;
+    const batchSize = Math.floor(Math.random() * range) + minTagsPerComment;
     const batch = remaining.slice(0, Math.min(batchSize, remaining.length));
     remaining = remaining.slice(batch.length);
     
-    if (batch.length >= 5) { // Only add if batch has at least 5 tags
+    // Only add if batch has at least half of minimum tags
+    const minBatchSize = Math.floor(minTagsPerComment / 2);
+    if (batch.length >= minBatchSize) { 
       commentBatches.push(batch);
     } else if (commentBatches.length > 0) {
       // Add remaining to last batch if too small

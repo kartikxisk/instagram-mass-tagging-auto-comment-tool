@@ -28,7 +28,14 @@ function loadAllUsernames(filepath, reset = true) {
           isMentionable === '1'
         );
       })
-      .map(row => (row['Username'] || '').trim())
+      .map(row => {
+        let username = (row['Username'] || '').trim();
+        // Remove @ if it's already in the username
+        if (username.startsWith('@')) {
+          username = username.substring(1);
+        }
+        return username;
+      })
       .filter(Boolean); // removes empty or undefined usernames
 
     if (reset) {

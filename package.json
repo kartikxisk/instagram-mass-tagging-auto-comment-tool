@@ -1,17 +1,67 @@
 {
-  "name": "instagram_post_auto_comment",
+  "name": "instagram-mass-tagger",
   "version": "1.0.0",
-  "description": "Instagram Post Auto Comment Tool",
-  "main": "main.js",
+  "description": "Instagram Mass Tagging Desktop Application",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node main.js",
+    "electron": "electron .",
+    "electron:dev": "NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
     "proxy-check": "node utils/proxyChecker.js",
     "browser": "npx puppeteer browsers install chrome",
     "fix": "node -e \"const os = require('os'); const fs = require('fs'); const { execSync } = require('child_process'); const isWin = os.platform() === 'win32'; const script = isWin ? '.\\\\fix.bat' : './fix.sh'; try { if (!isWin) { fs.chmodSync(script, '0755'); } execSync(script, { stdio: 'inherit' }); } catch(e) { console.error('Fix script execution failed:', e.message); process.exit(1); }\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "build": {
+    "appId": "com.instabot.masstagger",
+    "productName": "Instagram Mass Tagger",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "utils/**/*",
+      "config/**/*",
+      "data/**/*",
+      "cookies/**/*",
+      "logs/**/*",
+      "main.js",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
+  },
+  "keywords": [
+    "instagram",
+    "automation",
+    "tagging",
+    "electron"
+  ],
+  "author": "Tanishk Dhaka",
   "license": "ISC",
   "packageManager": "pnpm@10.4.1",
   "dependencies": {
@@ -25,5 +75,19 @@
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "electron",
+      "puppeteer"
+    ],
+    "onlyBuiltDependencies": [
+      "electron",
+      "puppeteer"
+    ]
   }
 }

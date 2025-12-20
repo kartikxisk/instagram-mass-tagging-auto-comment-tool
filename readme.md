@@ -1,19 +1,64 @@
 # 🚀 Instagram Mass Tagging Automation Tool
 
-A powerful Node.js automation using Puppeteer that logs into multiple Instagram accounts and posts comments containing user tags on a specific reel/post. The a## 📜 Available Scripts
+A powerful Node.js automation using Puppeteer that logs into multiple Instagram accounts and posts comments containing user tags on a specific reel/post. Now available as a **Desktop Application** with a modern GUI! The tool respects Instagram safety limits to avoid action blocks, shadowban, or account bans.
+
+---
+
+## �️ Desktop Application (Electron)
+
+The tool now comes with a beautiful desktop GUI built with Electron!
+
+### Features
+- 🎨 Modern dark theme interface
+- 📊 Real-time statistics and progress tracking
+- �📜 Live log viewer with color-coded messages
+- ⚙️ Easy account and proxy management
+- 🔄 Start/Stop controls
+- 🔌 Built-in proxy checker
+
+### Quick Start (Desktop App)
+
+```bash
+# Install dependencies
+npm install
+
+# Run the desktop app
+npm run electron
+```
+
+### Build for Distribution
+
+```bash
+# Build for macOS
+npm run build:mac
+
+# Build for Windows  
+npm run build:win
+
+# Build for Linux
+npm run build:linux
+```
+
+---
+
+## 📜 Available Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm start` | 🚀 Run mass tagging automation |
+| `npm run electron` | 🖥️ Run desktop application (GUI) |
+| `npm start` | 🚀 Run CLI mass tagging automation |
 | `npm run proxy-check` | ✅ Test all proxies before running |
 | `npm run browser` | Install Puppeteer Chrome browser |
-| `npm run fix` | Run fix script for common issues | respects Instagram safety limits to avoid action blocks, shadowban, or account bans.
+| `npm run build:mac` | 📦 Build macOS app (.dmg) |
+| `npm run build:win` | 📦 Build Windows app (.exe) |
+| `npm run fix` | Run fix script for common issues |
 
 ---
 
 ## 📆 Features
 
 ### Core Features
+- **Desktop Application**: Modern GUI with Electron
 - **Multi-Account Support**: Handle 500-700+ accounts
 - **Batch Processing**: Accounts divided into groups of 100 per batch
 - **Smart Tag Distribution**: 60 unique tags per account, 10-12 tags per comment
@@ -40,6 +85,17 @@ A powerful Node.js automation using Puppeteer that logs into multiple Instagram 
 
 ```
 instagram-mass-tagger/
+├── electron/                 # 🖥️ Electron app files
+│   ├── main.js               # Electron main process
+│   ├── preload.js            # IPC bridge
+│   ├── automation-runner.js  # Automation bridge
+│   ├── proxy-checker-runner.js
+│   └── renderer/
+│       ├── index.html        # App UI
+│       ├── styles.css        # Dark theme styles
+│       └── renderer.js       # Frontend logic
+├── assets/                   # App icons
+│   └── icon.png
 ├── config/
 │   └── accounts.json         # Accounts + proxies configuration
 ├── data/
@@ -63,7 +119,7 @@ instagram-mass-tagger/
 │   ├── sessionManager.js     # Cookie/session management
 │   ├── tagDistribution.js    # Tag distribution logic
 │   └── userAgents.js         # Random user agent generator
-├── main.js                   # 🚀 Main automation script
+├── main.js                   # 🚀 CLI automation script
 ├── .env                      # Environment config
 ├── .env.example              # Example environment config
 └── package.json
