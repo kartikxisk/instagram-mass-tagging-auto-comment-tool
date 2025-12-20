@@ -1,11 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const LOGS_DIR = path.join(__dirname, '../logs');
+// Create date-wise folder for logs
+const today = new Date();
+const dateFolder = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const LOGS_DIR = path.join(__dirname, '../logs', dateFolder);
 const logFilePath = path.join(LOGS_DIR, 'mention_logs.csv');
 const summaryFilePath = path.join(LOGS_DIR, 'session_summary.json');
 
-// Ensure logs directory exists
+// Ensure date-wise logs directory exists
 if (!fs.existsSync(LOGS_DIR)) {
   fs.mkdirSync(LOGS_DIR, { recursive: true });
 }

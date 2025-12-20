@@ -5,7 +5,12 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const { createObjectCsvWriter } = require('csv-writer');
 
 const ACCOUNTS_PATH = path.join(__dirname, '..', 'config', 'accounts.json');
-const LOG_PATH = path.join(__dirname, '..', 'logs', 'proxy_check_log.csv');
+
+// Create date-wise folder for logs
+const today = new Date();
+const dateFolder = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const LOGS_DIR = path.join(__dirname, '..', 'logs', dateFolder);
+const LOG_PATH = path.join(LOGS_DIR, 'proxy_check_log.csv');
 
 const config = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf-8'));
 
@@ -81,6 +86,19 @@ const proxies = allProxies.map(item => {
   const results = [];
 
   for (const { label, url } of proxies) {
+    const timestamp = new Date().toISOString();
+    const date = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit' 
+    });
+    const time = new Date().toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: false 
+    });
+
     try {
       const agent = new HttpsProxyAgent(url);
 
@@ -91,26 +109,28 @@ const proxies = allProxies.map(item => {
 
       if (res.data.includes('instagram')) {
         console.log(`${label} --> ✅ Success`);
-        results.push({ label, status: '✅ Success' });
+        results.push({ date, time, timestamp, label, status: '✅ Success' });
       } else {
         console.log(`${label} --> ❌ Failed - No IG content`);
-        results.push({ label, status: '❌ Failed - No IG content' });
+        results.push({ date, time, timestamp, label, status: '❌ Failed - No IG content' });
       }
     } catch (err) {
       console.log(`${label} --> ❌ Failed - ${err.message}`);
-      results.push({ label, status: `❌ Failed - ${err.message}` });
+      results.push({ date, time, timestamp, label, status: `❌ Failed - ${err.message}` });
     }
   }
 
-  // Ensure logs directory exists
-  const logsDir = path.dirname(LOG_PATH);
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
+  // Ensure date-wise logs directory exists
+  if (!fs.existsSync(LOGS_DIR)) {
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
   }
 
   const csvWriter = createObjectCsvWriter({
     path: LOG_PATH,
     header: [
+      { id: 'date', title: 'Date' },
+      { id: 'time', title: 'Time' },
+      { id: 'timestamp', title: 'Timestamp' },
       { id: 'label', title: 'Proxy' },
       { id: 'status', title: 'Status' },
     ],

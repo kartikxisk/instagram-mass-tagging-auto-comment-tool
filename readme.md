@@ -39,14 +39,19 @@ instagram-mass-tagger/
 │   └── usernames.xlsx        # Excel file with usernames to tag
 ├── cookies/
 │   └── [username].json       # Session cookies per account
-├── logs/
-│   ├── mention_logs.csv      # Detailed log of all comments
-│   └── session_summary.json  # Session statistics
+├── logs/                     # 📅 Date-wise log folders
+│   ├── 2025-12-20/
+│   │   ├── proxy_check_log.csv
+│   │   ├── mention_logs.csv
+│   │   └── session_summary.json
+│   └── 2025-12-21/
+│       └── ...
 ├── utils/
 │   ├── delay.js              # Delay utilities (random, comment, account delays)
 │   ├── humanBehavior.js      # Human-like behavior simulation
 │   ├── logger.js             # Logging and statistics tracking
 │   ├── parseExcel.js         # Excel parsing and batching
+│   ├── proxyChecker.js       # Proxy validation utility
 │   ├── proxySetup.js         # Proxy configuration
 │   ├── sessionManager.js     # Cookie/session management
 │   ├── tagDistribution.js    # Tag distribution logic
@@ -259,7 +264,7 @@ node utils/proxyChecker.js
 Verify all your proxies are working before running the main script:
 - Tests each proxy from `proxies` array and individual account proxies
 - Shows ✅ Success or ❌ Failed for each proxy
-- Saves results to `logs/proxy_check_log.csv`
+- Saves results to date-wise folder: `logs/YYYY-MM-DD/proxy_check_log.csv`
 
 ---
 
@@ -279,7 +284,20 @@ node manual-login/manual-login.js
 
 ## 📊 Logs & Statistics
 
-### Mention Logs (`logs/mention_logs.csv`)
+All logs are organized in **date-wise folders** for easy tracking:
+
+```
+logs/
+├── 2025-12-20/
+│   ├── proxy_check_log.csv    # Proxy test results
+│   ├── mention_logs.csv       # Comment activity logs
+│   └── session_summary.json   # Session statistics
+├── 2025-12-21/
+│   └── ...
+└── ...
+```
+
+### Mention Logs (`logs/YYYY-MM-DD/mention_logs.csv`)
 Detailed CSV log of every comment attempt:
 - Timestamp
 - Account username
@@ -289,7 +307,12 @@ Detailed CSV log of every comment attempt:
 - Tags count
 - Error message
 
-### Session Summary (`logs/session_summary.json`)
+### Proxy Check Logs (`logs/YYYY-MM-DD/proxy_check_log.csv`)
+| Date | Time | Timestamp | Proxy | Status |
+|------|------|-----------|-------|--------|
+| 12/20/2025 | 14:30:25 | 2025-12-20T14:30:25.123Z | 142.111.48.253:7030 | ✅ Success |
+
+### Session Summary (`logs/YYYY-MM-DD/session_summary.json`)
 ```json
 {
   "startTime": "2024-12-20T10:00:00.000Z",
