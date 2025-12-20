@@ -95,13 +95,6 @@ Edit `config/accounts.json`:
     {
       "username": "account1",
       "password": "password1",
-      "proxy": {
-        "protocol": "http",
-        "address": "142.111.48.253",
-        "port": 7030,
-        "username": "proxyuser",
-        "password": "proxypass"
-      }
     },
     {
       "username": "account2",
