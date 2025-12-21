@@ -1,5 +1,10 @@
 {
-  "accounts": [],
+  "accounts": [
+    {
+      "username": "kartikxisk",
+      "password": "Kartik@13"
+    }
+  ],
   "proxies": [
     {
       "address": "185.135.10.54",
@@ -604,16 +609,16 @@
   ],
   "targetPost": "https://www.instagram.com/p/DH-SHSaozJH/",
   "settings": {
-    "parallelAccounts": 3,
+    "parallelAccounts": 1,
     "accountsPerBatch": 100,
-    "tagsPerAccount": 60,
+    "tagsPerAccount": 20,
     "tagsPerComment": {
-      "min": 10,
-      "max": 12
+      "min": 3,
+      "max": 5
     },
     "commentsPerAccount": {
-      "min": 5,
-      "max": 7
+      "min": 3,
+      "max": 5
     },
     "pauseAfterComments": 50
   }

@@ -80,10 +80,14 @@ function getSessionDuration() {
 
 /**
  * Typing delay - random delay between keystrokes for human-like typing
- * @returns {number} - Delay in ms between 50-200ms
+ * @returns {number} - Delay in ms between 40-120ms
  */
 function getTypingDelay() {
-  return Math.floor(Math.random() * 150) + 50; // 50-200ms
+  // Fast but natural typing: 40-120ms
+  const baseDelay = Math.floor(Math.random() * 60) + 40;
+  // 10% chance of slightly slower keystroke
+  const extraDelay = Math.random() < 0.1 ? Math.floor(Math.random() * 50) : 0;
+  return baseDelay + extraDelay;
 }
 
 /**

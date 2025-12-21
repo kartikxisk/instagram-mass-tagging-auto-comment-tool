@@ -413,8 +413,10 @@ class AutomationRunner extends EventEmitter {
         this.emitStats();
 
         // Delay between comments with human-like scrolling
+        // IMPORTANT: Longer delays reduce chance of being blocked
         if (i < commentsToPost - 1 && !this.shouldStop) {
-          const delayTime = Math.floor(Math.random() * 85000) + 35000; // 35-120 seconds
+          // Delay: 45-90 seconds between comments
+          const delayTime = Math.floor(Math.random() * 45000) + 45000;
           this.emit('log', { type: 'info', message: `⏳ [${account.username}] Waiting ${Math.round(delayTime/1000)}s before next comment...` });
           
           // Do human-like scrolling while waiting
@@ -502,7 +504,23 @@ class AutomationRunner extends EventEmitter {
         'textarea[autocomplete="off"]'
       ];
 
-      // Find and click textarea
+      // Random pre-comment behavior - look around the page first like a real user
+      await this.simulateReadingPost(page, utils);
+
+      // Small scroll to ensure comment section is visible
+      await page.evaluate(() => {
+        const textarea = document.querySelector('textarea[aria-label="Add a comment…"]') || 
+                        document.querySelector('textarea[placeholder="Add a comment…"]');
+        if (textarea) {
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+      await utils.humanBehavior.randomWait(400, 800);
+
+      // Random mouse movement before clicking textarea
+      await this.randomMouseMovement(page);
+
+      // Find and click textarea - always get fresh reference
       let textarea = null;
       for (const selector of commentSelectors) {
         try {
@@ -518,28 +536,58 @@ class AutomationRunner extends EventEmitter {
         return { success: false, error: 'Comment textarea not found', tagsPosted: 0 };
       }
 
-      // Click textarea to focus
-      await textarea.click();
-      await utils.humanBehavior.humanPause(0.5, 1);
+      // Click textarea to focus with human-like click
+      const box = await textarea.boundingBox();
+      if (box) {
+        // Click at a random position within the textarea
+        const clickX = box.x + Math.random() * box.width * 0.8 + box.width * 0.1;
+        const clickY = box.y + Math.random() * box.height * 0.6 + box.height * 0.2;
+        await page.mouse.click(clickX, clickY);
+      } else {
+        await textarea.click();
+      }
+      await utils.humanBehavior.humanPause(0.4, 0.8);
+
+      // Clear any existing content in textarea (important for subsequent comments)
+      const isMac = process.platform === 'darwin';
+      if (isMac) {
+        await page.keyboard.down('Meta');
+        await page.keyboard.press('KeyA');
+        await page.keyboard.up('Meta');
+      } else {
+        await page.keyboard.down('Control');
+        await page.keyboard.press('KeyA');
+        await page.keyboard.up('Control');
+      }
+      await page.keyboard.press('Backspace');
+      await utils.humanBehavior.randomWait(150, 300);
+
+      // Re-click to ensure focus after clearing
+      textarea = await page.$(commentSelectors[0]) || await page.$(commentSelectors[1]);
+      if (textarea) {
+        await textarea.click();
+        await utils.humanBehavior.randomWait(200, 400);
+      }
 
       // Decide comment structure randomly for variety
       const structureType = Math.floor(Math.random() * 5);
-      // 0: filler + tags
-      // 1: tags + filler
-      // 2: filler + tags + emoji
-      // 3: tags only (sometimes plain is fine)
-      // 4: emoji + tags + filler
 
-      // Helper to type text naturally
+      // Helper to type text naturally with variable speed and occasional pauses
       const typeText = async (text) => {
-        for (const char of text) {
-          await page.keyboard.type(char, { delay: utils.delay.getTypingDelay() });
-          if (Math.random() < 0.1) {
-            await utils.humanBehavior.randomWait(50, 150);
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          const baseDelay = utils.delay.getTypingDelay();
+          const extraDelay = [' ', '.', ',', '!', '?', '@'].includes(char) ? Math.random() * 80 : 0;
+          
+          await page.keyboard.type(char, { delay: baseDelay + extraDelay });
+          
+          // Random micro-pauses (5% chance)
+          if (Math.random() < 0.05) {
+            await utils.humanBehavior.randomWait(100, 250);
           }
         }
         await page.keyboard.type(' ', { delay: utils.delay.getTypingDelay() });
-        await utils.humanBehavior.randomWait(150, 300);
+        await utils.humanBehavior.randomWait(100, 200);
       };
 
       // Add prefix based on structure
@@ -559,22 +607,33 @@ class AutomationRunner extends EventEmitter {
         }
 
         // Type the @username character by character (human-like)
-        for (const char of tag) {
-          await page.keyboard.type(char, { delay: utils.delay.getTypingDelay() });
-          // Random micro-pauses for human feel
-          if (Math.random() < 0.15) {
-            await utils.humanBehavior.randomWait(100, 300);
+        for (let j = 0; j < tag.length; j++) {
+          const char = tag[j];
+          const baseDelay = utils.delay.getTypingDelay();
+          // Type @ slightly slower
+          const charDelay = char === '@' ? baseDelay + Math.random() * 50 : baseDelay;
+          
+          await page.keyboard.type(char, { delay: charDelay });
+          
+          // Random micro-pauses for human feel (8% chance)
+          if (Math.random() < 0.08) {
+            await utils.humanBehavior.randomWait(50, 150);
           }
         }
 
         // Add space after username
         await page.keyboard.type(' ', { delay: utils.delay.getTypingDelay() });
 
-        // Small pause between usernames
-        await utils.humanBehavior.randomWait(200, 400);
+        // Shorter pause between usernames
+        const pauseType = Math.random();
+        if (pauseType < 0.8) {
+          await utils.humanBehavior.randomWait(150, 300); // Normal pause
+        } else {
+          await utils.humanBehavior.randomWait(300, 500); // Slightly longer
+        }
 
-        // Occasionally add emoji between tags (15% chance, not on last tag)
-        if (i < tags.length - 1 && Math.random() < 0.15) {
+        // Occasionally add emoji between tags (8% chance, not on last tag)
+        if (i < tags.length - 1 && Math.random() < 0.08) {
           await typeText(this.getRandomEmoji());
         }
       }
@@ -587,18 +646,20 @@ class AutomationRunner extends EventEmitter {
       }
 
       // Wait a moment for any popover to appear
-      await utils.humanBehavior.randomWait(500, 800);
+      await utils.humanBehavior.randomWait(300, 600);
 
       // Press Escape to close any mention popover
       await page.keyboard.press('Escape');
-      await utils.humanBehavior.randomWait(300, 500);
+      await utils.humanBehavior.randomWait(200, 400);
 
-      // Wait before clicking Post
-      await utils.humanBehavior.humanPause(0.3, 0.6);
+      // Human-like pause before posting (like reviewing what you typed)
+      await utils.humanBehavior.humanPause(0.5, 1.0);
+
+      // Random mouse movement before clicking Post
+      await this.randomMouseMovement(page);
 
       // Find and click the Post button
       const postClicked = await page.evaluate(() => {
-        // Find all clickable elements with "Post" text
         const allElements = document.querySelectorAll('div[role="button"], button, span');
         for (const el of allElements) {
           const text = el.textContent.trim();
@@ -611,13 +672,12 @@ class AutomationRunner extends EventEmitter {
       });
 
       if (!postClicked) {
-        // Fallback: press Enter to submit
         this.emit('log', { type: 'info', message: 'Post button not found, using Enter key' });
         await page.keyboard.press('Enter');
       }
 
-      // Wait for comment to be posted
-      await utils.humanBehavior.randomWait(3000, 5000);
+      // Wait for comment to be posted (longer wait for Instagram to process)
+      await utils.humanBehavior.randomWait(2500, 4000);
 
       // Check for "Couldn't post comment" error
       const errorDetected = await page.evaluate(() => {
@@ -627,20 +687,93 @@ class AutomationRunner extends EventEmitter {
           "Try again later",
           "try again later",
           "Action Blocked",
-          "action blocked"
+          "action blocked",
+          "We restrict certain",
+          "temporarily blocked"
         ];
         const bodyText = document.body.innerText;
-        return errorTexts.some(text => bodyText.includes(text));
+        return errorTexts.some(text => bodyText.toLowerCase().includes(text.toLowerCase()));
       });
 
       if (errorDetected) {
         return { success: false, error: "Couldn't post comment - Instagram blocked this action", tagsPosted: 0 };
       }
 
+      // After successful post, do natural post-comment behavior
+      try {
+        // Click somewhere neutral to reset focus
+        await page.evaluate(() => {
+          const postArea = document.querySelector('article') || document.body;
+          postArea.click();
+        });
+        await utils.humanBehavior.randomWait(400, 800);
+        
+        // Scroll around naturally like viewing the post
+        await page.evaluate(() => {
+          window.scrollBy({ top: Math.random() * 60 + 20, behavior: 'smooth' });
+        });
+        await utils.humanBehavior.randomWait(300, 500);
+        await page.evaluate(() => {
+          window.scrollBy({ top: -(Math.random() * 50 + 15), behavior: 'smooth' });
+        });
+        await utils.humanBehavior.randomWait(200, 400);
+      } catch (e) {
+        // Ignore errors in cleanup
+      }
+
       return { success: true, error: null, tagsPosted: tags.length };
 
     } catch (error) {
       return { success: false, error: error.message, tagsPosted: 0 };
+    }
+  }
+
+  /**
+   * Simulate reading the post before commenting (like a real user would)
+   */
+  async simulateReadingPost(page, utils) {
+    try {
+      // 50% chance to skip this entirely for speed
+      if (Math.random() < 0.5) return;
+      
+      // Quick pre-comment action
+      const action = Math.random();
+      
+      if (action < 0.4) {
+        // Small scroll
+        await page.evaluate(() => {
+          window.scrollBy({ top: -80, behavior: 'smooth' });
+        });
+        await utils.humanBehavior.randomWait(500, 1000);
+        await page.evaluate(() => {
+          window.scrollBy({ top: 80, behavior: 'smooth' });
+        });
+        await utils.humanBehavior.randomWait(300, 500);
+      } else {
+        // Just a quick pause
+        await utils.humanBehavior.randomWait(400, 800);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  /**
+   * Random mouse movement to simulate human behavior
+   */
+  async randomMouseMovement(page) {
+    try {
+      const viewport = page.viewport();
+      if (!viewport) return;
+      
+      // Move mouse to a random position
+      const x = Math.floor(Math.random() * (viewport.width - 200)) + 100;
+      const y = Math.floor(Math.random() * (viewport.height - 200)) + 100;
+      
+      await page.mouse.move(x, y, { steps: Math.floor(Math.random() * 10) + 5 });
+      await new Promise(r => setTimeout(r, Math.random() * 300 + 100));
+    } catch (e) {
+      // Ignore errors
     }
   }
 
