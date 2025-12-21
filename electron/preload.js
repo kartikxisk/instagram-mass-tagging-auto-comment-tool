@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
   importAccounts: () => ipcRenderer.invoke('import-accounts'),
   exportAccounts: (accounts) => ipcRenderer.invoke('export-accounts', accounts),
+  importProxies: () => ipcRenderer.invoke('import-proxies'),
+  exportProxies: (proxies) => ipcRenderer.invoke('export-proxies', proxies),
   
   // App info
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
@@ -35,6 +37,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Tag tracker
   resetTagTracker: () => ipcRenderer.invoke('reset-tag-tracker'),
   getTagStats: () => ipcRenderer.invoke('get-tag-stats'),
+  
+  // Data folder
+  openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
+  getDataPath: () => ipcRenderer.invoke('get-data-path'),
   
   // Event listeners
   onAutomationLog: (callback) => {

@@ -7,6 +7,17 @@ const axios = require('axios');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const fs = require('fs');
 const path = require('path');
+const { app } = require('electron');
+
+/**
+ * Get user data path for storing app data
+ */
+function getAppDataPath() {
+  if (app && app.isPackaged) {
+    return app.getPath('userData');
+  }
+  return path.join(__dirname, '..');
+}
 
 /**
  * Check a single proxy
@@ -41,7 +52,8 @@ async function checkProxy(proxy) {
  * Check all proxies from config
  */
 async function checkAllProxies(onProgress) {
-  const configPath = path.join(__dirname, '../config/accounts.json');
+  const basePath = getAppDataPath();
+  const configPath = path.join(basePath, 'config', 'accounts.json');
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
   const allProxies = [];

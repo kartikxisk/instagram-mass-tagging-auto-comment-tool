@@ -2,7 +2,23 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const COOKIES_DIR = path.join(__dirname, '..', 'cookies');
+/**
+ * Get the cookies directory path
+ * Uses Electron's userData path when packaged, otherwise project root
+ */
+function getCookiesDir() {
+  try {
+    const { app } = require('electron');
+    if (app && app.isPackaged) {
+      return path.join(app.getPath('userData'), 'cookies');
+    }
+  } catch (e) {
+    // Not in Electron context
+  }
+  return path.join(__dirname, '..', 'cookies');
+}
+
+const COOKIES_DIR = getCookiesDir();
 
 // Ensure cookies directory exists
 if (!fs.existsSync(COOKIES_DIR)) {

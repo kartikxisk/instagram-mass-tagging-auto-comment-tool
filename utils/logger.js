@@ -1,10 +1,26 @@
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * Get the logs directory path
+ * Uses Electron's userData path when packaged, otherwise project root
+ */
+function getLogsDir() {
+  try {
+    const { app } = require('electron');
+    if (app && app.isPackaged) {
+      return path.join(app.getPath('userData'), 'logs');
+    }
+  } catch (e) {
+    // Not in Electron context
+  }
+  return path.join(__dirname, '..', 'logs');
+}
+
 // Create date-wise folder for logs
 const today = new Date();
 const dateFolder = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-const LOGS_DIR = path.join(__dirname, '../logs', dateFolder);
+const LOGS_DIR = path.join(getLogsDir(), dateFolder);
 const logFilePath = path.join(LOGS_DIR, 'mention_logs.csv');
 const summaryFilePath = path.join(LOGS_DIR, 'session_summary.json');
 

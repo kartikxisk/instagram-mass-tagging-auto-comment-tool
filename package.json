@@ -25,12 +25,18 @@
     "files": [
       "electron/**/*",
       "utils/**/*",
-      "config/**/*",
-      "data/**/*",
-      "cookies/**/*",
-      "logs/**/*",
       "main.js",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "config/default-settings.json",
+        "to": "config/default-settings.json"
+      },
+      {
+        "from": "samples",
+        "to": "samples"
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",

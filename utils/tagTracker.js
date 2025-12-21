@@ -6,7 +6,23 @@
 const fs = require('fs');
 const path = require('path');
 
-const TRACKER_DIR = path.join(__dirname, '..', 'data');
+/**
+ * Get the data directory path
+ * Uses Electron's userData path when packaged, otherwise project root
+ */
+function getDataDir() {
+  try {
+    const { app } = require('electron');
+    if (app && app.isPackaged) {
+      return path.join(app.getPath('userData'), 'data');
+    }
+  } catch (e) {
+    // Not in Electron context
+  }
+  return path.join(__dirname, '..', 'data');
+}
+
+const TRACKER_DIR = getDataDir();
 const TRACKER_FILE = path.join(TRACKER_DIR, 'tagged_users.json');
 
 // In-memory tracking

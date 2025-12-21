@@ -58,9 +58,12 @@ const elements = {
   proxiesList: document.getElementById('proxies-list'),
   proxiesCount: document.getElementById('proxies-count'),
   btnTestAllProxies: document.getElementById('btn-test-all-proxies'),
+  btnImportProxies: document.getElementById('btn-import-proxies'),
+  btnExportProxies: document.getElementById('btn-export-proxies'),
   btnAddProxy: document.getElementById('btn-add-proxy'),
   
   // Settings
+  settingParallelAccounts: document.getElementById('setting-parallel-accounts'),
   settingBatchSize: document.getElementById('setting-batch-size'),
   settingTagsPerAccount: document.getElementById('setting-tags-per-account'),
   settingTagsMin: document.getElementById('setting-tags-min'),
@@ -137,6 +140,7 @@ async function saveConfig() {
   // Update config from UI
   state.config.targetPost = elements.targetPost.value;
   state.config.settings = {
+    parallelAccounts: parseInt(elements.settingParallelAccounts.value),
     accountsPerBatch: parseInt(elements.settingBatchSize.value),
     tagsPerAccount: parseInt(elements.settingTagsPerAccount.value),
     tagsPerComment: {
@@ -179,7 +183,7 @@ function setupEventListeners() {
   
   // Quick actions
   elements.btnCheckProxies.addEventListener('click', checkProxies);
-  elements.btnOpenLogs.addEventListener('click', () => window.electronAPI.openLogsFolder());
+  elements.btnOpenLogs.addEventListener('click', openLogsFolder);
   elements.btnResetTags.addEventListener('click', resetTagTracker);
   
   // Help icons
@@ -207,6 +211,8 @@ function setupEventListeners() {
   
   // Proxies
   elements.btnTestAllProxies.addEventListener('click', checkProxies);
+  elements.btnImportProxies.addEventListener('click', importProxies);
+  elements.btnExportProxies.addEventListener('click', exportProxies);
   elements.btnAddProxy.addEventListener('click', () => showModal('modal-add-proxy'));
   document.getElementById('btn-confirm-add-proxy').addEventListener('click', addProxy);
   
@@ -348,10 +354,24 @@ async function resetTagTracker() {
 }
 
 async function updateTagStats() {
-  const stats = await window.electronAPI.getTagStats();
+  const result = await window.electronAPI.getTagStats();
   
-  if (stats && elements.totalTagged) {
-    elements.totalTagged.textContent = stats.totalTagged || 0;
+  if (result && result.success && result.stats && elements.totalTagged) {
+    elements.totalTagged.textContent = result.stats.totalTagged || 0;
+  }
+}
+
+// ============================================
+// Folder Operations
+// ============================================
+
+async function openLogsFolder() {
+  const result = await window.electronAPI.openLogsFolder();
+  
+  if (result.success) {
+    log('info', `Opened logs folder: ${result.path}`);
+  } else {
+    log('error', `Failed to open logs folder: ${result.error}`);
   }
 }
 
@@ -426,6 +446,29 @@ async function exportAccounts() {
   
   if (result.success) {
     log('success', 'Accounts exported successfully');
+  } else if (!result.canceled) {
+    log('error', `Failed to export: ${result.error}`);
+  }
+}
+
+async function importProxies() {
+  const result = await window.electronAPI.importProxies();
+  
+  if (result.success) {
+    state.config.proxies = [...state.config.proxies, ...result.proxies];
+    await saveConfig();
+    renderProxiesList();
+    log('success', `Imported ${result.proxies.length} proxies`);
+  } else if (!result.canceled) {
+    log('error', `Failed to import: ${result.error}`);
+  }
+}
+
+async function exportProxies() {
+  const result = await window.electronAPI.exportProxies(state.config.proxies);
+  
+  if (result.success) {
+    log('success', 'Proxies exported successfully');
   } else if (!result.canceled) {
     log('error', `Failed to export: ${result.error}`);
   }
@@ -706,6 +749,7 @@ function updateProxiesList(results) {
 // ============================================
 
 function resetSettings() {
+  elements.settingParallelAccounts.value = 3;
   elements.settingBatchSize.value = 100;
   elements.settingTagsPerAccount.value = 60;
   elements.settingTagsMin.value = 10;
@@ -776,6 +820,7 @@ function updateUI() {
   
   // Update settings
   const settings = state.config.settings || {};
+  elements.settingParallelAccounts.value = settings.parallelAccounts || 3;
   elements.settingBatchSize.value = settings.accountsPerBatch || 100;
   elements.settingTagsPerAccount.value = settings.tagsPerAccount || 60;
   elements.settingTagsMin.value = settings.tagsPerComment?.min || 10;

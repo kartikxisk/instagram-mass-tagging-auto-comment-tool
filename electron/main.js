@@ -15,6 +15,79 @@ let automationRunner = null;
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 /**
+ * Get user data path for storing app data
+ * In production: Uses system app data directory
+ * In development: Uses project root
+ */
+function getAppDataPath() {
+  if (app.isPackaged) {
+    return app.getPath('userData');
+  }
+  return path.join(__dirname, '..');
+}
+
+/**
+ * Get paths for various app directories
+ */
+function getPaths() {
+  const basePath = getAppDataPath();
+  return {
+    config: path.join(basePath, 'config'),
+    cookies: path.join(basePath, 'cookies'),
+    logs: path.join(basePath, 'logs'),
+    data: path.join(basePath, 'data')
+  };
+}
+
+/**
+ * Initialize app directories
+ */
+function initializeDirectories() {
+  const paths = getPaths();
+  Object.values(paths).forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+  
+  // Create default config if it doesn't exist
+  const configFile = path.join(paths.config, 'accounts.json');
+  if (!fs.existsSync(configFile)) {
+    let defaultSettings = {
+      accountsPerBatch: 100,
+      tagsPerAccount: 60,
+      tagsPerComment: { min: 10, max: 12 },
+      commentsPerAccount: { min: 5, max: 7 },
+      pauseAfterComments: 50
+    };
+    
+    // In packaged app, try to load settings from bundled config (but NOT accounts/proxies)
+    if (app.isPackaged) {
+      try {
+        const bundledConfigPath = path.join(process.resourcesPath, 'config', 'default-settings.json');
+        if (fs.existsSync(bundledConfigPath)) {
+          const bundledConfig = JSON.parse(fs.readFileSync(bundledConfigPath, 'utf8'));
+          if (bundledConfig.settings) {
+            defaultSettings = bundledConfig.settings;
+          }
+        }
+      } catch (e) {
+        // Use default settings if bundled config can't be read
+      }
+    }
+    
+    // Always start with empty accounts and proxies - user must import their own
+    const defaultConfig = {
+      accounts: [],
+      proxies: [],
+      targetPost: '',
+      settings: defaultSettings
+    };
+    fs.writeFileSync(configFile, JSON.stringify(defaultConfig, null, 2));
+  }
+}
+
+/**
  * Create the main application window
  */
 function createWindow() {
@@ -65,6 +138,9 @@ function createWindow() {
  * App ready event
  */
 app.whenReady().then(() => {
+  // Initialize directories first
+  initializeDirectories();
+  
   createWindow();
 
   // Initialize automation runner
@@ -106,7 +182,28 @@ app.on('before-quit', async () => {
  */
 ipcMain.handle('load-config', async () => {
   try {
-    const configPath = path.join(__dirname, '../config/accounts.json');
+    const paths = getPaths();
+    const configPath = path.join(paths.config, 'accounts.json');
+    
+    if (!fs.existsSync(configPath)) {
+      // Return default config if file doesn't exist
+      return { 
+        success: true, 
+        config: {
+          accounts: [],
+          proxies: [],
+          targetPost: '',
+          settings: {
+            accountsPerBatch: 100,
+            tagsPerAccount: 60,
+            tagsPerComment: { min: 10, max: 12 },
+            commentsPerAccount: { min: 5, max: 7 },
+            pauseAfterComments: 50
+          }
+        }
+      };
+    }
+    
     const configData = fs.readFileSync(configPath, 'utf8');
     return { success: true, config: JSON.parse(configData) };
   } catch (error) {
@@ -119,7 +216,15 @@ ipcMain.handle('load-config', async () => {
  */
 ipcMain.handle('save-config', async (event, config) => {
   try {
-    const configPath = path.join(__dirname, '../config/accounts.json');
+    const paths = getPaths();
+    const configDir = paths.config;
+    
+    // Ensure directory exists
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+    
+    const configPath = path.join(configDir, 'accounts.json');
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     return { success: true };
   } catch (error) {
@@ -241,15 +346,25 @@ ipcMain.handle('select-excel-file', async () => {
  * Open logs folder
  */
 ipcMain.handle('open-logs-folder', async () => {
-  const logsPath = path.join(__dirname, '../logs');
-  
-  // Ensure logs folder exists
-  if (!fs.existsSync(logsPath)) {
-    fs.mkdirSync(logsPath, { recursive: true });
+  try {
+    const paths = getPaths();
+    const logsPath = paths.logs;
+    
+    // Ensure logs folder exists
+    if (!fs.existsSync(logsPath)) {
+      fs.mkdirSync(logsPath, { recursive: true });
+    }
+    
+    const error = await shell.openPath(logsPath);
+    if (error) {
+      console.error('Failed to open logs folder:', error);
+      return { success: false, error };
+    }
+    return { success: true, path: logsPath };
+  } catch (error) {
+    console.error('Error opening logs folder:', error);
+    return { success: false, error: error.message };
   }
-  
-  shell.openPath(logsPath);
-  return { success: true };
 });
 
 /**
@@ -260,13 +375,14 @@ ipcMain.handle('get-app-version', () => {
 });
 
 /**
- * Import accounts from file
+ * Import accounts from CSV file
+ * CSV format: username,password
  */
 ipcMain.handle('import-accounts', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Import Accounts',
     filters: [
-      { name: 'JSON Files', extensions: ['json'] },
+      { name: 'CSV Files', extensions: ['csv'] },
       { name: 'Text Files', extensions: ['txt'] }
     ],
     properties: ['openFile']
@@ -278,20 +394,25 @@ ipcMain.handle('import-accounts', async () => {
 
   try {
     const content = fs.readFileSync(result.filePaths[0], 'utf8');
-    const ext = path.extname(result.filePaths[0]).toLowerCase();
+    const lines = content.split('\n').filter(line => line.trim());
     
     let accounts = [];
     
-    if (ext === '.json') {
-      const data = JSON.parse(content);
-      accounts = Array.isArray(data) ? data : (data.accounts || []);
-    } else {
-      // Parse txt format: username:password per line
-      const lines = content.split('\n').filter(line => line.trim());
-      accounts = lines.map(line => {
-        const [username, password] = line.split(':').map(s => s.trim());
-        return { username, password };
-      }).filter(acc => acc.username && acc.password);
+    // Skip header row if it looks like a header
+    const startIndex = lines[0]?.toLowerCase().includes('username') ? 1 : 0;
+    
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      // Parse CSV: username,password
+      const parts = line.split(',').map(s => s.trim());
+      if (parts.length >= 2 && parts[0] && parts[1]) {
+        accounts.push({
+          username: parts[0],
+          password: parts[1]
+        });
+      }
     }
     
     return { success: true, accounts };
@@ -301,14 +422,15 @@ ipcMain.handle('import-accounts', async () => {
 });
 
 /**
- * Export accounts to file
+ * Export accounts to CSV file
+ * CSV format: username,password
  */
 ipcMain.handle('export-accounts', async (event, accounts) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     title: 'Export Accounts',
-    defaultPath: 'accounts-export.json',
+    defaultPath: 'accounts-export.csv',
     filters: [
-      { name: 'JSON Files', extensions: ['json'] }
+      { name: 'CSV Files', extensions: ['csv'] }
     ]
   });
 
@@ -317,7 +439,89 @@ ipcMain.handle('export-accounts', async (event, accounts) => {
   }
 
   try {
-    fs.writeFileSync(result.filePath, JSON.stringify(accounts, null, 2));
+    const csvLines = ['username,password'];
+    accounts.forEach(acc => {
+      csvLines.push(`${acc.username},${acc.password}`);
+    });
+    fs.writeFileSync(result.filePath, csvLines.join('\n'));
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Import proxies from CSV file
+ * CSV format: address,port,username,password
+ */
+ipcMain.handle('import-proxies', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import Proxies',
+    filters: [
+      { name: 'CSV Files', extensions: ['csv'] },
+      { name: 'Text Files', extensions: ['txt'] }
+    ],
+    properties: ['openFile']
+  });
+
+  if (result.canceled) {
+    return { success: false, canceled: true };
+  }
+
+  try {
+    const content = fs.readFileSync(result.filePaths[0], 'utf8');
+    const lines = content.split('\n').filter(line => line.trim());
+    
+    let proxies = [];
+    
+    // Skip header row if it looks like a header
+    const startIndex = lines[0]?.toLowerCase().includes('address') ? 1 : 0;
+    
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      // Parse CSV: address,port,username,password
+      const parts = line.split(',').map(s => s.trim());
+      if (parts.length >= 2 && parts[0] && parts[1]) {
+        proxies.push({
+          address: parts[0],
+          port: parts[1],
+          username: parts[2] || '',
+          password: parts[3] || ''
+        });
+      }
+    }
+    
+    return { success: true, proxies };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Export proxies to CSV file
+ * CSV format: address,port,username,password
+ */
+ipcMain.handle('export-proxies', async (event, proxies) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export Proxies',
+    defaultPath: 'proxies-export.csv',
+    filters: [
+      { name: 'CSV Files', extensions: ['csv'] }
+    ]
+  });
+
+  if (result.canceled) {
+    return { success: false, canceled: true };
+  }
+
+  try {
+    const csvLines = ['address,port,username,password'];
+    proxies.forEach(proxy => {
+      csvLines.push(`${proxy.address},${proxy.port},${proxy.username || ''},${proxy.password || ''}`);
+    });
+    fs.writeFileSync(result.filePath, csvLines.join('\n'));
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -329,8 +533,9 @@ ipcMain.handle('export-accounts', async (event, accounts) => {
  */
 ipcMain.handle('check-session', async (event, username) => {
   try {
+    const paths = getPaths();
     // Use same format as sessionManager.js: {username}.json
-    const cookiesPath = path.join(__dirname, '../cookies', `${username}.json`);
+    const cookiesPath = path.join(paths.cookies, `${username}.json`);
     const hasSession = fs.existsSync(cookiesPath);
     return { success: true, hasSession };
   } catch (error) {
@@ -343,7 +548,8 @@ ipcMain.handle('check-session', async (event, username) => {
  */
 ipcMain.handle('delete-session', async (event, username) => {
   try {
-    const cookiesPath = path.join(__dirname, '../cookies', `${username}.json`);
+    const paths = getPaths();
+    const cookiesPath = path.join(paths.cookies, `${username}.json`);
     if (fs.existsSync(cookiesPath)) {
       fs.unlinkSync(cookiesPath);
     }
@@ -391,7 +597,8 @@ ipcMain.handle('manual-login', async (event, credentials) => {
     puppeteer.use(StealthPlugin());
     
     // Ensure cookies directory exists
-    const cookiesDir = path.join(__dirname, '../cookies');
+    const paths = getPaths();
+    const cookiesDir = paths.cookies;
     if (!fs.existsSync(cookiesDir)) {
       fs.mkdirSync(cookiesDir, { recursive: true });
     }
@@ -512,4 +719,26 @@ ipcMain.handle('manual-login', async (event, credentials) => {
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+/**
+ * Open data folder in file explorer
+ */
+ipcMain.handle('open-data-folder', async () => {
+  const basePath = getAppDataPath();
+  
+  // Ensure folder exists
+  if (!fs.existsSync(basePath)) {
+    fs.mkdirSync(basePath, { recursive: true });
+  }
+  
+  shell.openPath(basePath);
+  return { success: true, path: basePath };
+});
+
+/**
+ * Get app data path
+ */
+ipcMain.handle('get-data-path', () => {
+  return { success: true, path: getAppDataPath() };
 });
