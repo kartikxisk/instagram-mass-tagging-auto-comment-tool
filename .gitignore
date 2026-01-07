@@ -28,8 +28,13 @@ build/
 .next/
 out/
 
+config/
+cookies/
+
 # Project specific
 config.json
 credentials.json
 *.log
 logs/
+
+

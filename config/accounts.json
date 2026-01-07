@@ -1,8 +1,28 @@
 {
   "accounts": [
     {
-      "username": "kartikxisk",
-      "password": "Kartik@13"
+      "username": "are_yoo_aarav",
+      "password": "ninjaturtles"
+    },
+    {
+      "username": "are_yoo_aditya",
+      "password": "ninjaturtles"
+    },
+    {
+      "username": "are_yoo_anirudh",
+      "password": "ninjaturtles"
+    },
+    {
+      "username": "are_yoo_atharv",
+      "password": "ninjaturtles"
+    },
+    {
+      "username": "are_yoo_kavya",
+      "password": "ninjaturtles"
+    },
+    {
+      "username": "are_yoo_kritika",
+      "password": "ninjaturtles"
     }
   ],
   "proxies": [
