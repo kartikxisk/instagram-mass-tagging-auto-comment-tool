@@ -529,6 +529,123 @@ ipcMain.handle('export-proxies', async (event, proxies) => {
 });
 
 /**
+ * Export all sessions (cookies) as a JSON file
+ */
+ipcMain.handle('export-sessions', async () => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export All Sessions',
+    defaultPath: `sessions-export-${Date.now()}.json`,
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] }
+    ]
+  });
+
+  if (result.canceled) {
+    return { success: false, canceled: true };
+  }
+
+  try {
+    const paths = getPaths();
+    const cookiesDir = paths.cookies;
+    
+    // Check if cookies directory exists and has files
+    if (!fs.existsSync(cookiesDir)) {
+      return { success: false, error: 'No sessions found to export' };
+    }
+    
+    const files = fs.readdirSync(cookiesDir).filter(f => f.endsWith('.json'));
+    
+    if (files.length === 0) {
+      return { success: false, error: 'No sessions found to export' };
+    }
+    
+    // Create a JSON export with all sessions
+    const sessionData = {};
+    files.forEach(file => {
+      const username = file.replace('.json', '');
+      const filePath = path.join(cookiesDir, file);
+      try {
+        sessionData[username] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      } catch (e) {
+        console.error(`Failed to read session for ${username}:`, e.message);
+      }
+    });
+    
+    fs.writeFileSync(result.filePath, JSON.stringify(sessionData, null, 2));
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Import sessions (cookies) from a JSON file
+ */
+ipcMain.handle('import-sessions', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import Sessions',
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ],
+    properties: ['openFile']
+  });
+
+  if (result.canceled) {
+    return { success: false, canceled: true };
+  }
+
+  try {
+    const filePath = result.filePaths[0];
+    const paths = getPaths();
+    const cookiesDir = paths.cookies;
+    
+    // Ensure cookies directory exists
+    if (!fs.existsSync(cookiesDir)) {
+      fs.mkdirSync(cookiesDir, { recursive: true });
+    }
+    
+    // Read and parse the JSON file
+    const content = fs.readFileSync(filePath, 'utf8');
+    const sessionData = JSON.parse(content);
+    
+    let importedCount = 0;
+    let failedCount = 0;
+    const importedUsernames = [];
+
+    // Handle different formats
+    if (typeof sessionData === 'object' && !Array.isArray(sessionData)) {
+      // Multiple sessions format: { username: [cookies], username2: [cookies] }
+      Object.entries(sessionData).forEach(([username, cookies]) => {
+        try {
+          if (Array.isArray(cookies)) {
+            const destPath = path.join(cookiesDir, `${username}.json`);
+            fs.writeFileSync(destPath, JSON.stringify(cookies, null, 2));
+            importedCount++;
+            importedUsernames.push(username);
+          } else {
+            failedCount++;
+          }
+        } catch (e) {
+          console.error(`Failed to import session for ${username}:`, e.message);
+          failedCount++;
+        }
+      });
+    } else {
+      return { success: false, error: 'Invalid session file format. Please use the exported JSON from this application.' };
+    }
+    
+    if (importedCount === 0) {
+      return { success: false, error: 'No valid sessions found in the import file.' };
+    }
+    
+    return { success: true, count: importedCount, failed: failedCount, usernames: importedUsernames };
+  } catch (error) {
+    return { success: false, error: `Failed to import sessions: ${error.message}` };
+  }
+});
+
+/**
  * Check if an account has saved session/cookies
  */
 ipcMain.handle('check-session', async (event, username) => {

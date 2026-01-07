@@ -52,6 +52,8 @@ const elements = {
   accountsCount: document.getElementById('accounts-count'),
   btnImportAccounts: document.getElementById('btn-import-accounts'),
   btnExportAccounts: document.getElementById('btn-export-accounts'),
+  btnImportSessions: document.getElementById('btn-import-sessions'),
+  btnExportSessions: document.getElementById('btn-export-sessions'),
   btnAddAccount: document.getElementById('btn-add-account'),
   
   // Proxies
@@ -203,6 +205,8 @@ function setupEventListeners() {
   // Accounts
   elements.btnImportAccounts.addEventListener('click', importAccounts);
   elements.btnExportAccounts.addEventListener('click', exportAccounts);
+  elements.btnImportSessions.addEventListener('click', importSessions);
+  elements.btnExportSessions.addEventListener('click', exportSessions);
   elements.btnAddAccount.addEventListener('click', () => showModal('modal-add-account'));
   document.getElementById('btn-confirm-add-account').addEventListener('click', addAccount);
   
@@ -474,6 +478,47 @@ async function exportProxies() {
   }
 }
 
+async function exportSessions() {
+  const result = await window.electronAPI.exportSessions();
+  
+  if (result.success) {
+    log('success', 'All sessions exported successfully');
+  } else if (!result.canceled) {
+    log('error', `Failed to export sessions: ${result.error}`);
+  }
+}
+
+async function importSessions() {
+  const result = await window.electronAPI.importSessions();
+  
+  if (result.success) {
+    log('success', `Imported ${result.count} sessions successfully`);
+    
+    // Auto-add imported usernames to accounts list if they don't exist
+    if (result.usernames && result.usernames.length > 0) {
+      result.usernames.forEach(username => {
+        // Check if account already exists
+        const accountExists = state.config.accounts.some(acc => acc.username === username);
+        if (!accountExists) {
+          // Add placeholder account with imported username
+          state.config.accounts.push({ 
+            username: username, 
+            password: '' // Password will need to be added manually
+          });
+        }
+      });
+      
+      // Save config with updated accounts
+      await saveConfig();
+    }
+    
+    // Refresh the accounts list to show session status
+    renderAccountsList();
+  } else if (!result.canceled) {
+    log('error', `Failed to import sessions: ${result.error}`);
+  }
+}
+
 // ============================================
 // Account Management
 // ============================================
@@ -501,10 +546,16 @@ function addAccount() {
 
 function removeAccount(index) {
   const account = state.config.accounts[index];
+  
+  // Show confirmation alert
+  if (!confirm(`Are you sure you want to remove account "${account.username}"?\n\nThis action cannot be undone.`)) {
+    return;
+  }
+  
   state.config.accounts.splice(index, 1);
   saveConfig();
   renderAccountsList();
-  log('info', `Account "${account.username}" removed`);
+  log('success', `Account "${account.username}" removed`);
 }
 
 // Check if an account has saved cookies
@@ -696,10 +747,16 @@ function addProxy() {
 
 function removeProxy(index) {
   const proxy = state.config.proxies[index];
+  
+  // Show confirmation alert
+  if (!confirm(`Are you sure you want to remove proxy "${proxy.address}:${proxy.port}"?\n\nThis action cannot be undone.`)) {
+    return;
+  }
+  
   state.config.proxies.splice(index, 1);
   saveConfig();
   renderProxiesList();
-  log('info', `Proxy "${proxy.address}:${proxy.port}" removed`);
+  log('success', `Proxy "${proxy.address}:${proxy.port}" removed`);
 }
 
 function renderProxiesList(results = null) {

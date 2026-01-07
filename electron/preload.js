@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportAccounts: (accounts) => ipcRenderer.invoke('export-accounts', accounts),
   importProxies: () => ipcRenderer.invoke('import-proxies'),
   exportProxies: (proxies) => ipcRenderer.invoke('export-proxies', proxies),
+  importSessions: () => ipcRenderer.invoke('import-sessions'),
+  exportSessions: () => ipcRenderer.invoke('export-sessions'),
   
   // App info
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),

@@ -275,6 +275,81 @@ async function createSession(page, account) {
   return await loadSession(page, account);
 }
 
+/**
+ * Get all available sessions
+ * @returns {Array} - Array of usernames that have sessions
+ */
+function getAllSessions() {
+  try {
+    if (!fs.existsSync(COOKIES_DIR)) {
+      return [];
+    }
+    
+    return fs.readdirSync(COOKIES_DIR)
+      .filter(file => file.endsWith('.json'))
+      .map(file => file.replace('.json', ''));
+  } catch (error) {
+    console.error(`❌ Failed to get all sessions: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Export all sessions to an object
+ * @returns {Object} - Object with usernames as keys and cookies as values
+ */
+function exportAllSessions() {
+  try {
+    const sessions = {};
+    const sessionList = getAllSessions();
+    
+    sessionList.forEach(username => {
+      try {
+        const cookiePath = path.join(COOKIES_DIR, `${username}.json`);
+        const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
+        sessions[username] = cookies;
+      } catch (e) {
+        console.warn(`⚠️ Failed to read session for ${username}: ${e.message}`);
+      }
+    });
+    
+    return sessions;
+  } catch (error) {
+    console.error(`❌ Failed to export sessions: ${error.message}`);
+    return {};
+  }
+}
+
+/**
+ * Import sessions from an object
+ * @param {Object} sessions - Object with usernames as keys and cookies as values
+ * @returns {Object} - { success, count, failed }
+ */
+function importSessionsFromObject(sessions) {
+  let successCount = 0;
+  let failedCount = 0;
+  
+  try {
+    Object.entries(sessions).forEach(([username, cookies]) => {
+      try {
+        if (Array.isArray(cookies)) {
+          const cookiePath = path.join(COOKIES_DIR, `${username}.json`);
+          fs.writeFileSync(cookiePath, JSON.stringify(cookies, null, 2));
+          console.log(`✅ Imported session for ${username}`);
+          successCount++;
+        }
+      } catch (e) {
+        console.error(`❌ Failed to import session for ${username}: ${e.message}`);
+        failedCount++;
+      }
+    });
+  } catch (error) {
+    console.error(`❌ Failed to import sessions: ${error.message}`);
+  }
+  
+  return { success: successCount > 0, count: successCount, failed: failedCount };
+}
+
 module.exports = { 
   login, 
   loadSession, 
@@ -282,5 +357,8 @@ module.exports = {
   saveCookies, 
   loadCookies, 
   hasCookies, 
-  deleteCookies 
+  deleteCookies,
+  getAllSessions,
+  exportAllSessions,
+  importSessionsFromObject
 };

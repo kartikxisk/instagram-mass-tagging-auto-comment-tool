@@ -28,8 +28,8 @@ build/
 .next/
 out/
 
-config/
 cookies/
+cookies-1/
 
 # Project specific
 config.json
