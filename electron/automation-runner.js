@@ -224,12 +224,12 @@ class AutomationRunner extends EventEmitter {
     const proxy = this.getProxyForAccount(account, config.proxies || [], accountIndex);
     const userAgent = utils.userAgents.getRandomUserAgent();
     
-    this.emit('log', { type: 'info', message: `👤 [${account.username}] Starting...` });
+    this.emit('log', { type: 'info', message: `👤 Starting...`, username: account.username });
     
     if (proxy) {
-      this.emit('log', { type: 'info', message: `🌐 [${account.username}] Using proxy: ${proxy.address}:${proxy.port}` });
+      this.emit('log', { type: 'info', message: `🌐 Using proxy: ${proxy.address}:${proxy.port}`, username: account.username });
     } else {
-      this.emit('log', { type: 'warning', message: `⚠️ [${account.username}] No proxy assigned` });
+      this.emit('log', { type: 'warning', message: `⚠️ No proxy assigned`, username: account.username });
     }
 
     // Launch browser
@@ -274,11 +274,11 @@ class AutomationRunner extends EventEmitter {
       });
 
       // Login - use custom login that emits logs
-      this.emit('log', { type: 'info', message: `🔐 [${account.username}] Checking session...` });
+      this.emit('log', { type: 'info', message: `🔐 Checking session...`, username: account.username });
       const loginResult = await this.loginWithLogs(page, account, utils);
 
       if (!loginResult.success) {
-        this.emit('log', { type: 'error', message: `❌ [${account.username}] Login failed: ${loginResult.error}` });
+        this.emit('log', { type: 'error', message: `❌ Login failed: ${loginResult.error}`, username: account.username });
         // Log to file as well
         utils.logger.logMention({
           account: account.username,
@@ -289,15 +289,15 @@ class AutomationRunner extends EventEmitter {
         return;
       }
 
-      this.emit('log', { type: 'success', message: `✅ [${account.username}] Logged in successfully` });
+      this.emit('log', { type: 'success', message: `✅ Logged in successfully`, username: account.username });
 
       // Navigate to target post
-      this.emit('log', { type: 'info', message: `📍 [${account.username}] Navigating to target post...` });
+      this.emit('log', { type: 'info', message: `📍 Navigating to target post...`, username: account.username });
       await page.goto(config.targetPost, { waitUntil: 'networkidle2', timeout: 60000 });
 
       // Check if stopped
       if (this.shouldStop) {
-        this.emit('log', { type: 'warning', message: `⏹️ [${account.username}] Stopping after navigation...` });
+        this.emit('log', { type: 'warning', message: `⏹️ Stopping after navigation...`, username: account.username });
         return;
       }
 
@@ -306,11 +306,11 @@ class AutomationRunner extends EventEmitter {
       const untaggedForAccount = utils.tagTracker.getNextBatch(allTags, tagsPerAccount);
       
       if (untaggedForAccount.length === 0) {
-        this.emit('log', { type: 'warning', message: `⚠️ [${account.username}] No more untagged users available` });
+        this.emit('log', { type: 'warning', message: `⚠️ No more untagged users available`, username: account.username });
         return;
       }
       
-      this.emit('log', { type: 'info', message: `📋 [${account.username}] Reserved ${untaggedForAccount.length} users to tag` });
+      this.emit('log', { type: 'info', message: `📋 Reserved ${untaggedForAccount.length} users to tag`, username: account.username });
 
       // Generate comment batches using settings from config
       const tagsPerCommentMin = config.settings?.tagsPerComment?.min || 10;
@@ -330,12 +330,12 @@ class AutomationRunner extends EventEmitter {
       const commentsRange = commentsMax - commentsMin + 1;
       const commentsToPost = Math.min(commentBatches.length, Math.floor(Math.random() * commentsRange) + commentsMin);
       
-      this.emit('log', { type: 'info', message: `📝 [${account.username}] Planning ${commentsToPost} comments (${tagsPerCommentMin}-${tagsPerCommentMax} tags each)` });
+      this.emit('log', { type: 'info', message: `📝 Planning ${commentsToPost} comments (${tagsPerCommentMin}-${tagsPerCommentMax} tags each)`, username: account.username });
 
       // Post comments - close and restart browser for each comment
       for (let i = 0; i < commentsToPost; i++) {
         if (this.shouldStop) {
-          this.emit('log', { type: 'warning', message: `⏹️ [${account.username}] Stopping comment loop...` });
+          this.emit('log', { type: 'warning', message: `⏹️ Stopping comment loop...`, username: account.username });
           // Release reserved tags that weren't posted
           for (let j = i; j < commentsToPost; j++) {
             if (commentBatches[j]) {
@@ -350,7 +350,7 @@ class AutomationRunner extends EventEmitter {
 
         // Format tags with @ for display (show all)
         const tagsDisplay = tags.map(t => `@${t}`).join(' ');
-        this.emit('log', { type: 'info', message: `💬 [${account.username}] Comment ${i + 1}/${commentsToPost} (${tags.length} tags): ${tagsDisplay}` });
+        this.emit('log', { type: 'info', message: `💬 Comment ${i + 1}/${commentsToPost} (${tags.length} tags): ${tagsDisplay}`, username: account.username });
 
         const result = await this.postComment(page, tags, utils);
 
@@ -364,7 +364,7 @@ class AutomationRunner extends EventEmitter {
           // Mark tags as successfully posted in global tracker
           utils.tagTracker.markAsTagged(tags);
           
-          this.emit('log', { type: 'success', message: `✅ [${account.username}] Comment ${i + 1} posted (${tags.length} tags)` });
+          this.emit('log', { type: 'success', message: `✅ Comment ${i + 1} posted (${tags.length} tags)`, username: account.username });
           this.stats.commentsPosted++;
           this.stats.successfulComments++;
           this.stats.tagsPosted += tags.length;
@@ -383,7 +383,7 @@ class AutomationRunner extends EventEmitter {
           });
           
           // Close browser after successful comment
-          this.emit('log', { type: 'info', message: `🔄 [${account.username}] Closing browser for fresh restart...` });
+          this.emit('log', { type: 'info', message: `🔄 Closing browser for fresh restart...`, username: account.username });
           if (browser) {
             try {
               const browserIndex = this.browsers.indexOf(browser);
@@ -394,25 +394,25 @@ class AutomationRunner extends EventEmitter {
               browser = null;
               page = null;
             } catch (e) {
-              this.emit('log', { type: 'warning', message: `⚠️ [${account.username}] Error closing browser: ${e.message}` });
+              this.emit('log', { type: 'warning', message: `⚠️ Error closing browser: ${e.message}`, username: account.username });
             }
           }
           
           // Delay before starting fresh browser (simulate user break)
           if (i < commentsToPost - 1 && !this.shouldStop) {
             const delayTime = Math.floor(Math.random() * 45000) + 45000; // 45-90 seconds
-            this.emit('log', { type: 'info', message: `⏳ [${account.username}] Waiting ${Math.round(delayTime/1000)}s before fresh browser...` });
+            this.emit('log', { type: 'info', message: `⏳ Waiting ${Math.round(delayTime/1000)}s before fresh browser...`, username: account.username });
             await this.sleep(delayTime);
           }
           
           // Start fresh browser with new proxy if there are more comments
           if (i < commentsToPost - 1 && !this.shouldStop) {
-            this.emit('log', { type: 'info', message: `🚀 [${account.username}] Starting fresh browser for comment ${i + 2}...` });
+            this.emit('log', { type: 'info', message: `🚀 Starting fresh browser for comment ${i + 2}...`, username: account.username });
             const newProxy = this.getProxyForAccount(account, config.proxies || [], accountIndex);
             const newUserAgent = utils.userAgents.getRandomUserAgent();
             
             if (newProxy) {
-              this.emit('log', { type: 'info', message: `🌐 [${account.username}] New proxy: ${newProxy.address}:${newProxy.port}` });
+              this.emit('log', { type: 'info', message: `🌐 New proxy: ${newProxy.address}:${newProxy.port}`, username: account.username });
             }
             
             // Re-initialize browser and page
@@ -450,11 +450,11 @@ class AutomationRunner extends EventEmitter {
               });
               
               // Re-login with new browser
-              this.emit('log', { type: 'info', message: `🔐 [${account.username}] Re-logging in...` });
+              this.emit('log', { type: 'info', message: `🔐 Re-logging in...`, username: account.username });
               const reLoginResult = await this.loginWithLogs(page, account, utils);
               
               if (!reLoginResult.success) {
-                this.emit('log', { type: 'error', message: `❌ [${account.username}] Re-login failed: ${reLoginResult.error}` });
+                this.emit('log', { type: 'error', message: `❌ Re-login failed: ${reLoginResult.error}`, username: account.username });
                 utils.tagTracker.releaseTags(tags); // Release this batch
                 // Release remaining tags
                 for (let j = i + 1; j < commentsToPost; j++) {
@@ -465,15 +465,15 @@ class AutomationRunner extends EventEmitter {
                 break;
               }
               
-              this.emit('log', { type: 'success', message: `✅ [${account.username}] Re-logged in successfully` });
+              this.emit('log', { type: 'success', message: `✅ Re-logged in successfully`, username: account.username });
               
               // Navigate to target post again
-              this.emit('log', { type: 'info', message: `📍 [${account.username}] Navigating to target post...` });
+              this.emit('log', { type: 'info', message: `📍 Navigating to target post...`, username: account.username });
               await page.goto(config.targetPost, { waitUntil: 'networkidle2', timeout: 60000 });
               
-              this.emit('log', { type: 'success', message: `✅ [${account.username}] Ready for next comment` });
+              this.emit('log', { type: 'success', message: `✅ Ready for next comment`, username: account.username });
             } catch (error) {
-              this.emit('log', { type: 'error', message: `❌ [${account.username}] Failed to restart browser: ${error.message}` });
+              this.emit('log', { type: 'error', message: `❌ Failed to restart browser: ${error.message}`, username: account.username });
               utils.tagTracker.releaseTags(tags);
               // Release remaining tags
               for (let j = i + 1; j < commentsToPost; j++) {
@@ -488,7 +488,7 @@ class AutomationRunner extends EventEmitter {
           // Release tags back to pool if comment failed
           utils.tagTracker.releaseTags(tags);
           
-          this.emit('log', { type: 'error', message: `❌ [${account.username}] Comment ${i + 1} failed: ${result.error}` });
+          this.emit('log', { type: 'error', message: `❌ Comment ${i + 1} failed: ${result.error}`, username: account.username });
           this.stats.failedComments++;
           
           // Log to file
@@ -502,7 +502,7 @@ class AutomationRunner extends EventEmitter {
           });
           
           // Close browser after failed comment for fresh restart
-          this.emit('log', { type: 'info', message: `🔄 [${account.username}] Closing browser after failed comment...` });
+          this.emit('log', { type: 'info', message: `🔄 Closing browser after failed comment...`, username: account.username });
           if (browser) {
             try {
               const browserIndex = this.browsers.indexOf(browser);
@@ -513,12 +513,12 @@ class AutomationRunner extends EventEmitter {
               browser = null;
               page = null;
             } catch (e) {
-              this.emit('log', { type: 'warning', message: `⚠️ [${account.username}] Error closing browser: ${e.message}` });
+              this.emit('log', { type: 'warning', message: `⚠️ Error closing browser: ${e.message}`, username: account.username });
             }
           }
           
           if (result.error.includes('blocked') || result.error.includes("Couldn't post")) {
-            this.emit('log', { type: 'warning', message: `🚫 [${account.username}] Action blocked detected, skipping account` });
+            this.emit('log', { type: 'warning', message: `🚫 Action blocked detected, skipping account`, username: account.username });
             // Release remaining tags
             for (let j = i + 1; j < commentsToPost; j++) {
               if (commentBatches[j]) {
@@ -531,16 +531,16 @@ class AutomationRunner extends EventEmitter {
           // Delay before trying again with fresh browser
           if (i < commentsToPost - 1 && !this.shouldStop) {
             const delayTime = Math.floor(Math.random() * 45000) + 45000; // 45-90 seconds
-            this.emit('log', { type: 'info', message: `⏳ [${account.username}] Waiting ${Math.round(delayTime/1000)}s before retry...` });
+            this.emit('log', { type: 'info', message: `⏳ Waiting ${Math.round(delayTime/1000)}s before retry...`, username: account.username });
             await this.sleep(delayTime);
             
             // Start fresh browser for retry
-            this.emit('log', { type: 'info', message: `🚀 [${account.username}] Starting fresh browser for retry...` });
+            this.emit('log', { type: 'info', message: `🚀 Starting fresh browser for retry...`, username: account.username });
             const newProxy = this.getProxyForAccount(account, config.proxies || [], accountIndex);
             const newUserAgent = utils.userAgents.getRandomUserAgent();
             
             if (newProxy) {
-              this.emit('log', { type: 'info', message: `🌐 [${account.username}] New proxy: ${newProxy.address}:${newProxy.port}` });
+              this.emit('log', { type: 'info', message: `🌐 New proxy: ${newProxy.address}:${newProxy.port}`, username: account.username });
             }
             
             const launchOptions = {
@@ -577,11 +577,11 @@ class AutomationRunner extends EventEmitter {
               });
               
               // Re-login
-              this.emit('log', { type: 'info', message: `🔐 [${account.username}] Re-logging in after failed comment...` });
+              this.emit('log', { type: 'info', message: `🔐 Re-logging in after failed comment...`, username: account.username });
               const reLoginResult = await this.loginWithLogs(page, account, utils);
               
               if (!reLoginResult.success) {
-                this.emit('log', { type: 'error', message: `❌ [${account.username}] Re-login failed: ${reLoginResult.error}` });
+                this.emit('log', { type: 'error', message: `❌ Re-login failed: ${reLoginResult.error}`, username: account.username });
                 // Release remaining tags
                 for (let j = i + 1; j < commentsToPost; j++) {
                   if (commentBatches[j]) {
@@ -591,13 +591,13 @@ class AutomationRunner extends EventEmitter {
                 break;
               }
               
-              this.emit('log', { type: 'success', message: `✅ [${account.username}] Re-logged in successfully` });
+              this.emit('log', { type: 'success', message: `✅ Re-logged in successfully`, username: account.username });
               
               // Navigate to target post
-              this.emit('log', { type: 'info', message: `📍 [${account.username}] Navigating to target post...` });
+              this.emit('log', { type: 'info', message: `📍 Navigating to target post...`, username: account.username });
               await page.goto(config.targetPost, { waitUntil: 'networkidle2', timeout: 60000 });
             } catch (error) {
-              this.emit('log', { type: 'error', message: `❌ [${account.username}] Failed to restart browser after failed comment: ${error.message}` });
+              this.emit('log', { type: 'error', message: `❌ Failed to restart browser after failed comment: ${error.message}`, username: account.username });
               // Release remaining tags
               for (let j = i + 1; j < commentsToPost; j++) {
                 if (commentBatches[j]) {
@@ -612,17 +612,15 @@ class AutomationRunner extends EventEmitter {
         this.emitStats();
       }
 
-      // Only save cookies if not stopped
+      // Session is already saved during login, no need to save again
       if (!this.shouldStop) {
-        this.emit('log', { type: 'info', message: `🍪 [${account.username}] Saving session...` });
-        await utils.sessionManager.saveCookies(page, account.username);
-        this.emit('log', { type: 'success', message: `✅ [${account.username}] Completed successfully` });
+        this.emit('log', { type: 'success', message: `✅ Completed successfully`, username: account.username });
       }
 
     } catch (error) {
       // Only log error if not due to stop
       if (!this.shouldStop) {
-        this.emit('log', { type: 'error', message: `🚫 [${account.username}] Error: ${error.message}` });
+        this.emit('log', { type: 'error', message: `🚫 Error: ${error.message}`, username: account.username });
         
         // Log error to file
         utils.logger.logMention({

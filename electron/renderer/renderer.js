@@ -255,7 +255,7 @@ function setupEventListeners() {
 
 function setupIPCListeners() {
   window.electronAPI.onAutomationLog((data) => {
-    log(data.type, data.message);
+    log(data.type, data.message, data.username || null);
   });
   
   window.electronAPI.onAutomationStats((data) => {
@@ -984,7 +984,7 @@ function updateUI() {
 // Logging
 // ============================================
 
-function log(type, message) {
+function log(type, message, username = null) {
   // Use IST (Indian Standard Time) timezone in 12-hour format
   const time = new Date().toLocaleTimeString('en-IN', { 
     hour12: true,
@@ -994,11 +994,17 @@ function log(type, message) {
     second: '2-digit'
   });
   
+  // Prepend username to message if provided
+  let displayMessage = message;
+  if (username) {
+    displayMessage = `[${username}] ${message}`;
+  }
+  
   const entry = document.createElement('div');
   entry.className = `log-entry log-${type}`;
   entry.innerHTML = `
     <span class="log-time">${time}</span>
-    <span class="log-message">${escapeHtml(message)}</span>
+    <span class="log-message">${escapeHtml(displayMessage)}</span>
   `;
   
   elements.logsContainer.appendChild(entry);
