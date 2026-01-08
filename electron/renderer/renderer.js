@@ -29,8 +29,6 @@ const elements = {
   // Stats
   statAccounts: document.getElementById('stat-accounts'),
   statComments: document.getElementById('stat-comments'),
-  statTags: document.getElementById('stat-tags'),
-  statSuccess: document.getElementById('stat-success'),
   
   // Status
   statusIndicator: document.getElementById('status-indicator'),
@@ -39,12 +37,9 @@ const elements = {
   // Quick Actions
   btnCheckProxies: document.getElementById('btn-check-proxies'),
   btnOpenLogs: document.getElementById('btn-open-logs'),
-  totalTagged: document.getElementById('total-tagged'),
   
   // Tag Tracker Stats
   trackerTotalTagged: document.getElementById('tracker-total-tagged'),
-  trackerTotalAttempts: document.getElementById('tracker-total-attempts'),
-  trackerDuplicatesPrevented: document.getElementById('tracker-duplicates-prevented'),
   trackerSuccessRate: document.getElementById('tracker-success-rate'),
   
   // Tag Tracker Actions
@@ -272,7 +267,7 @@ function setupIPCListeners() {
     state.isRunning = false;
     updateControlButtons();
     setStatus('ready', 'Automation complete');
-    log('success', `Automation completed! Processed ${data.accounts} accounts, ${data.comments} comments, ${data.tags} tags`);
+    log('success', `Automation completed! Processed ${data.accounts} accounts, ${data.comments} comments, ${data.tagged} tagged`);
     // Final tag stats update
     updateTagStats();
   });
@@ -362,8 +357,8 @@ async function stopAutomation() {
 async function updateTagStats() {
   const result = await window.electronAPI.getTagStats();
   
-  if (result && result.success && result.stats && elements.totalTagged) {
-    elements.totalTagged.textContent = result.stats.totalTagged || 0;
+  if (result && result.success && result.stats && elements.trackerTotalTagged) {
+    elements.trackerTotalTagged.textContent = result.stats.totalTagged || 0;
   }
 }
 
@@ -381,8 +376,6 @@ async function refreshTrackerStats() {
     
     // Update tracker stats display
     elements.trackerTotalTagged.textContent = stats.totalUniqueUsersTagged || 0;
-    elements.trackerTotalAttempts.textContent = stats.totalTagsAttempted || 0;
-    elements.trackerDuplicatesPrevented.textContent = stats.duplicatesPrevented || 0;
     elements.trackerSuccessRate.textContent = stats.successRate || '0%';
     
     // Color code the success rate
@@ -416,8 +409,6 @@ async function resetTrackerConfirm() {
     
     // Update display
     elements.trackerTotalTagged.textContent = '0';
-    elements.trackerTotalAttempts.textContent = '0';
-    elements.trackerDuplicatesPrevented.textContent = '0';
     elements.trackerSuccessRate.textContent = '0%';
     elements.trackerSuccessRate.className = 'tracker-stat-value';
     
@@ -948,8 +939,19 @@ function setStatus(type, message) {
 function updateStats(data) {
   if (data.accounts !== undefined) elements.statAccounts.textContent = data.accounts;
   if (data.comments !== undefined) elements.statComments.textContent = data.comments;
-  if (data.tags !== undefined) elements.statTags.textContent = data.tags;
-  if (data.successRate !== undefined) elements.statSuccess.textContent = `${data.successRate}%`;
+  if (data.tagged !== undefined) elements.trackerTotalTagged.textContent = data.tagged;
+  if (data.successRate !== undefined) {
+    elements.trackerSuccessRate.textContent = `${data.successRate}%`;
+    // Color code the success rate
+    const rate = parseFloat(data.successRate);
+    if (rate >= 90) {
+      elements.trackerSuccessRate.className = 'tracker-stat-value success';
+    } else if (rate >= 70) {
+      elements.trackerSuccessRate.className = 'tracker-stat-value warning';
+    } else {
+      elements.trackerSuccessRate.className = 'tracker-stat-value error';
+    }
+  }
 }
 
 function updateControlButtons() {

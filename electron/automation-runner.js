@@ -369,6 +369,9 @@ class AutomationRunner extends EventEmitter {
           this.stats.successfulComments++;
           this.stats.tagsPosted += tags.length;
           
+          // Emit stats update in real-time
+          this.emitStats();
+          
           // Log global progress
           const trackerStats = utils.tagTracker.getStats();
           this.emit('log', { type: 'info', message: `📊 Global progress: ${trackerStats.totalTagged} total tagged, ${trackerStats.pending} pending` });
@@ -490,6 +493,10 @@ class AutomationRunner extends EventEmitter {
           
           this.emit('log', { type: 'error', message: `❌ Comment ${i + 1} failed: ${result.error}`, username: account.username });
           this.stats.failedComments++;
+          this.stats.commentsPosted++; // Count as attempted for success rate
+          
+          // Emit stats update in real-time
+          this.emitStats();
           
           // Log to file
           utils.logger.logMention({
@@ -1191,10 +1198,13 @@ class AutomationRunner extends EventEmitter {
       ? Math.round((this.stats.successfulComments / this.stats.commentsPosted) * 100)
       : 0;
 
+    // Get tagged count from global tracker
+    const trackerStats = utils.tagTracker.getStats();
+
     this.emit('stats', {
       accounts: this.stats.accountsProcessed,
       comments: this.stats.commentsPosted,
-      tags: this.stats.tagsPosted,
+      tagged: trackerStats.totalTagged || this.stats.tagsPosted,
       successRate
     });
   }
@@ -1244,21 +1254,11 @@ class AutomationRunner extends EventEmitter {
   }
 
   /**
-   * Sleep helper - can be interrupted by stop
+   * Sleep helper - simple delay without checking shouldStop
+   * Each account runs independently in parallel mode
    */
   sleep(ms) {
-    return new Promise(resolve => {
-      const checkInterval = 500; // Check every 500ms
-      let elapsed = 0;
-      
-      const timer = setInterval(() => {
-        elapsed += checkInterval;
-        if (this.shouldStop || elapsed >= ms) {
-          clearInterval(timer);
-          resolve();
-        }
-      }, checkInterval);
-    });
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 

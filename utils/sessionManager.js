@@ -56,9 +56,15 @@ async function loadCookies(page, username) {
       const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
       
       // Check if cookies are expired
+      // Session cookies have expires = -1 or 0 or undefined, these should be kept
       const now = Date.now() / 1000;
       const validCookies = cookies.filter(cookie => {
-        if (cookie.expires && cookie.expires < now) {
+        // Session cookies (no expiry or -1) are always valid
+        if (!cookie.expires || cookie.expires === -1 || cookie.expires === 0) {
+          return true;
+        }
+        // Check if cookie has expired
+        if (cookie.expires > 0 && cookie.expires < now) {
           return false;
         }
         return true;
