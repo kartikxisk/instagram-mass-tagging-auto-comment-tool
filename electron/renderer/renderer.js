@@ -39,8 +39,17 @@ const elements = {
   // Quick Actions
   btnCheckProxies: document.getElementById('btn-check-proxies'),
   btnOpenLogs: document.getElementById('btn-open-logs'),
-  btnResetTags: document.getElementById('btn-reset-tags'),
   totalTagged: document.getElementById('total-tagged'),
+  
+  // Tag Tracker Stats
+  trackerTotalTagged: document.getElementById('tracker-total-tagged'),
+  trackerTotalAttempts: document.getElementById('tracker-total-attempts'),
+  trackerDuplicatesPrevented: document.getElementById('tracker-duplicates-prevented'),
+  trackerSuccessRate: document.getElementById('tracker-success-rate'),
+  
+  // Tag Tracker Actions
+  btnRefreshTracker: document.getElementById('btn-refresh-tracker'),
+  btnResetTracker: document.getElementById('btn-reset-tracker'),
   
   // Logs
   logsContainer: document.getElementById('logs-container'),
@@ -186,7 +195,10 @@ function setupEventListeners() {
   // Quick actions
   elements.btnCheckProxies.addEventListener('click', checkProxies);
   elements.btnOpenLogs.addEventListener('click', openLogsFolder);
-  elements.btnResetTags.addEventListener('click', resetTagTracker);
+  
+  // Tag Tracker Actions
+  elements.btnRefreshTracker.addEventListener('click', refreshTrackerStats);
+  elements.btnResetTracker.addEventListener('click', resetTrackerConfirm);
   
   // Help icons
   document.querySelectorAll('.help-icon').forEach(btn => {
@@ -306,6 +318,9 @@ async function startAutomation() {
   updateControlButtons();
   setStatus('running', 'Starting automation...');
   
+  // Start auto-refresh of tracker stats
+  startTrackerAutoRefresh();
+  
   const result = await window.electronAPI.startAutomation({
     targetPost,
     excelFilePath: state.excelFilePath,
@@ -317,12 +332,16 @@ async function startAutomation() {
     updateControlButtons();
     setStatus('error', result.error);
     log('error', `Failed to start: ${result.error}`);
+    stopTrackerAutoRefresh();
   }
 }
 
 async function stopAutomation() {
   setStatus('warning', 'Stopping automation...');
   log('warning', 'Stop requested. Finishing current task...');
+  
+  // Stop auto-refresh
+  stopTrackerAutoRefresh();
   
   const result = await window.electronAPI.stopAutomation();
   
@@ -340,28 +359,95 @@ async function stopAutomation() {
 // Tag Tracker
 // ============================================
 
-async function resetTagTracker() {
-  if (!confirm('Are you sure you want to reset the tag tracker? This will clear all records of tagged users.')) {
-    return;
-  }
-  
-  log('info', 'Resetting tag tracker...');
-  
-  const result = await window.electronAPI.resetTagTracker();
-  
-  if (result.success) {
-    log('success', 'Tag tracker reset successfully');
-    updateTagStats();
-  } else {
-    log('error', `Failed to reset tag tracker: ${result.error}`);
-  }
-}
-
 async function updateTagStats() {
   const result = await window.electronAPI.getTagStats();
   
   if (result && result.success && result.stats && elements.totalTagged) {
     elements.totalTagged.textContent = result.stats.totalTagged || 0;
+  }
+}
+
+// ============================================
+// Tag Tracker - Extended Functions
+// ============================================
+
+async function refreshTrackerStats() {
+  log('info', 'Refreshing tag tracker statistics...');
+  
+  const result = await window.electronAPI.getTrackerStats();
+  
+  if (result && result.success && result.stats) {
+    const stats = result.stats;
+    
+    // Update tracker stats display
+    elements.trackerTotalTagged.textContent = stats.totalUniqueUsersTagged || 0;
+    elements.trackerTotalAttempts.textContent = stats.totalTagsAttempted || 0;
+    elements.trackerDuplicatesPrevented.textContent = stats.duplicatesPrevented || 0;
+    elements.trackerSuccessRate.textContent = stats.successRate || '0%';
+    
+    // Color code the success rate
+    const rate = parseFloat(stats.successRate);
+    if (rate >= 90) {
+      elements.trackerSuccessRate.className = 'tracker-stat-value success';
+    } else if (rate >= 70) {
+      elements.trackerSuccessRate.className = 'tracker-stat-value warning';
+    } else {
+      elements.trackerSuccessRate.className = 'tracker-stat-value error';
+    }
+    
+    log('success', 'Tag tracker stats updated');
+  } else {
+    log('error', `Failed to get tracker stats: ${result?.error || 'Unknown error'}`);
+  }
+}
+
+async function resetTrackerConfirm() {
+  if (!confirm('🔄 Reset Tag Tracker?\n\nThis will clear all tagged user records. Use this when reusing the same usernames file.')) {
+    return;
+  }
+  
+  log('warning', 'Resetting global tag tracker...');
+  
+  const result = await window.electronAPI.resetTrackerGlobal();
+  
+  if (result && result.success) {
+    log('success', '✅ Tag tracker reset successfully!');
+    log('info', '📝 All tracked tags have been cleared');
+    
+    // Update display
+    elements.trackerTotalTagged.textContent = '0';
+    elements.trackerTotalAttempts.textContent = '0';
+    elements.trackerDuplicatesPrevented.textContent = '0';
+    elements.trackerSuccessRate.textContent = '0%';
+    elements.trackerSuccessRate.className = 'tracker-stat-value';
+    
+  } else {
+    log('error', `Failed to reset tracker: ${result?.error || 'Unknown error'}`);
+  }
+}
+
+// Auto-refresh tracker stats every 5 seconds
+let trackerAutoRefreshInterval = null;
+
+function startTrackerAutoRefresh() {
+  // Clear existing interval if any
+  if (trackerAutoRefreshInterval) {
+    clearInterval(trackerAutoRefreshInterval);
+  }
+  
+  // Refresh immediately
+  refreshTrackerStats();
+  
+  // Then refresh every 5 seconds
+  trackerAutoRefreshInterval = setInterval(() => {
+    refreshTrackerStats();
+  }, 5000);
+}
+
+function stopTrackerAutoRefresh() {
+  if (trackerAutoRefreshInterval) {
+    clearInterval(trackerAutoRefreshInterval);
+    trackerAutoRefreshInterval = null;
   }
 }
 

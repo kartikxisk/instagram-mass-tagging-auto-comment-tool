@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Tag tracker
   resetTagTracker: () => ipcRenderer.invoke('reset-tag-tracker'),
   getTagStats: () => ipcRenderer.invoke('get-tag-stats'),
+  getTrackerStats: () => ipcRenderer.invoke('get-tracker-stats'),
+  exportTrackerData: () => ipcRenderer.invoke('export-tracker-data'),
+  resetTrackerGlobal: () => ipcRenderer.invoke('reset-tracker-global'),
   
   // Data folder
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),

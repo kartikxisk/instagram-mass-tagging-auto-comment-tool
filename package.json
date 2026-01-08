@@ -13,6 +13,9 @@
     "build:linux": "electron-builder --linux",
     "proxy-check": "node utils/proxyChecker.js",
     "browser": "npx puppeteer browsers install chrome",
+    "tracker:reset": "node utils/globalTagTracker.js reset",
+    "tracker:stats": "node utils/globalTagTracker.js stats",
+    "tracker:export": "node utils/globalTagTracker.js export",
     "fix": "node -e \"const os = require('os'); const fs = require('fs'); const { execSync } = require('child_process'); const isWin = os.platform() === 'win32'; const script = isWin ? '.\\\\fix.bat' : './fix.sh'; try { if (!isWin) { fs.chmodSync(script, '0755'); } execSync(script, { stdio: 'inherit' }); } catch(e) { console.error('Fix script execution failed:', e.message); process.exit(1); }\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

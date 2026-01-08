@@ -703,6 +703,61 @@ ipcMain.handle('get-tag-stats', async () => {
 });
 
 /**
+ * Get Global Tag Tracker stats
+ */
+ipcMain.handle('get-tracker-stats', async () => {
+  try {
+    const globalTagTracker = require(path.join(__dirname, '../utils/globalTagTracker'));
+    globalTagTracker.loadTagHistory();
+    return { success: true, stats: globalTagTracker.getStats() };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Export Global Tag Tracker data
+ */
+ipcMain.handle('export-tracker-data', async () => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const globalTagTracker = require(path.join(__dirname, '../utils/globalTagTracker'));
+    
+    globalTagTracker.loadTagHistory();
+    const data = globalTagTracker.export();
+    
+    // Save to logs folder with timestamp
+    const logsDir = path.join(__dirname, '../logs');
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filePath = path.join(logsDir, `tracker-export-${timestamp}.json`);
+    
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    
+    return { success: true, filePath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Reset Global Tag Tracker
+ */
+ipcMain.handle('reset-tracker-global', async () => {
+  try {
+    const globalTagTracker = require(path.join(__dirname, '../utils/globalTagTracker'));
+    globalTagTracker.reset();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
  * Manual login - Opens a browser window for manual Instagram login with auto-fill
  */
 ipcMain.handle('manual-login', async (event, credentials) => {
