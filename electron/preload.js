@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // File operations
   selectExcelFile: () => ipcRenderer.invoke('select-excel-file'),
+  getExcelTagsCount: (filePath) => ipcRenderer.invoke('get-excel-tags-count', filePath),
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
   importAccounts: () => ipcRenderer.invoke('import-accounts'),
   exportAccounts: (accounts) => ipcRenderer.invoke('export-accounts', accounts),

@@ -25,6 +25,8 @@ const elements = {
   targetPost: document.getElementById('target-post'),
   excelFilePath: document.getElementById('excel-file-path'),
   btnSelectExcel: document.getElementById('btn-select-excel'),
+  totalTagsInfo: document.getElementById('total-tags-info'),
+  totalTagsCount: document.getElementById('total-tags-count'),
   
   // Stats
   statAccounts: document.getElementById('stat-accounts'),
@@ -71,7 +73,6 @@ const elements = {
   // Settings
   settingParallelAccounts: document.getElementById('setting-parallel-accounts'),
   settingBatchSize: document.getElementById('setting-batch-size'),
-  settingTagsPerAccount: document.getElementById('setting-tags-per-account'),
   settingTagsMin: document.getElementById('setting-tags-min'),
   settingTagsMax: document.getElementById('setting-tags-max'),
   settingCommentsMin: document.getElementById('setting-comments-min'),
@@ -133,7 +134,6 @@ async function loadConfig() {
       targetPost: '',
       settings: {
         accountsPerBatch: 100,
-        tagsPerAccount: 60,
         tagsPerComment: { min: 10, max: 12 },
         commentsPerAccount: { min: 5, max: 7 },
         pauseAfterComments: 50
@@ -148,7 +148,6 @@ async function saveConfig() {
   state.config.settings = {
     parallelAccounts: parseInt(elements.settingParallelAccounts.value),
     accountsPerBatch: parseInt(elements.settingBatchSize.value),
-    tagsPerAccount: parseInt(elements.settingTagsPerAccount.value),
     tagsPerComment: {
       min: parseInt(elements.settingTagsMin.value),
       max: parseInt(elements.settingTagsMax.value)
@@ -491,8 +490,30 @@ async function selectExcelFile() {
     state.excelFilePath = result.filePath;
     elements.excelFilePath.value = result.filePath;
     log('success', `Excel file selected: ${result.filePath}`);
+    
+    // Show total mentionable tags count
+    if (result.totalTags !== undefined) {
+      elements.totalTagsCount.textContent = result.totalTags;
+      elements.totalTagsInfo.style.display = 'block';
+      log('info', `📊 Found ${result.totalTags} mentionable users in Excel file`);
+    }
   } else if (!result.canceled) {
     log('error', `Failed to select file: ${result.error}`);
+  }
+}
+
+/**
+ * Load Excel tags count for an existing file path
+ */
+async function loadExcelTagsCount(filePath) {
+  try {
+    const result = await window.electronAPI.getExcelTagsCount(filePath);
+    if (result.success && result.totalTags !== undefined) {
+      elements.totalTagsCount.textContent = result.totalTags;
+      elements.totalTagsInfo.style.display = 'block';
+    }
+  } catch (error) {
+    console.error('Error loading tags count:', error);
   }
 }
 
@@ -649,6 +670,7 @@ async function checkAccountSession(username) {
 async function renderAccountsList() {
   const accounts = state.config.accounts || [];
   elements.accountsCount.textContent = accounts.length;
+  elements.statAccounts.textContent = accounts.length; // Update stats card too
   
   if (accounts.length === 0) {
     elements.accountsList.innerHTML = `
@@ -885,7 +907,6 @@ function updateProxiesList(results) {
 function resetSettings() {
   elements.settingParallelAccounts.value = 3;
   elements.settingBatchSize.value = 100;
-  elements.settingTagsPerAccount.value = 60;
   elements.settingTagsMin.value = 10;
   elements.settingTagsMax.value = 12;
   elements.settingCommentsMin.value = 5;
@@ -937,7 +958,7 @@ function setStatus(type, message) {
 }
 
 function updateStats(data) {
-  if (data.accounts !== undefined) elements.statAccounts.textContent = data.accounts;
+  // Note: statAccounts is NOT updated here - it shows total accounts (set elsewhere)
   if (data.comments !== undefined) elements.statComments.textContent = data.comments;
   if (data.tagged !== undefined) elements.trackerTotalTagged.textContent = data.tagged;
   if (data.successRate !== undefined) {
@@ -967,7 +988,6 @@ function updateUI() {
   const settings = state.config.settings || {};
   elements.settingParallelAccounts.value = settings.parallelAccounts || 3;
   elements.settingBatchSize.value = settings.accountsPerBatch || 100;
-  elements.settingTagsPerAccount.value = settings.tagsPerAccount || 60;
   elements.settingTagsMin.value = settings.tagsPerComment?.min || 10;
   elements.settingTagsMax.value = settings.tagsPerComment?.max || 12;
   elements.settingCommentsMin.value = settings.commentsPerAccount?.min || 5;
@@ -980,6 +1000,11 @@ function updateUI() {
   
   // Update stats display
   elements.statAccounts.textContent = state.config.accounts?.length || 0;
+  
+  // Load and show total tags count from saved Excel file
+  if (state.excelFilePath) {
+    loadExcelTagsCount(state.excelFilePath);
+  }
 }
 
 // ============================================

@@ -33,6 +33,9 @@
               <button id="btn-select-excel" class="btn btn-secondary btn-file">Browse</button>
             </div>
             <span class="input-hint">Excel file with columns: Username, Is Mentionable</span>
+            <div id="total-tags-info" class="tags-info-box" style="display: none;">
+              📊 Total mentionable users: <strong id="total-tags-count">0</strong>
+            </div>
           </div>
         </div>
 
@@ -190,10 +193,6 @@
                 <div class="setting-row">
                   <label for="setting-batch-size">Accounts per Batch</label>
                   <input type="number" id="setting-batch-size" value="100" min="1" max="500">
-                </div>
-                <div class="setting-row">
-                  <label for="setting-tags-per-account">Tags per Account</label>
-                  <input type="number" id="setting-tags-per-account" value="60" min="1" max="100">
                 </div>
               </div>
 

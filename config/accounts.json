@@ -629,16 +629,15 @@
   ],
   "targetPost": "https://www.instagram.com/p/DSLFcakkuxp/",
   "settings": {
-    "parallelAccounts": 10,
-    "accountsPerBatch": 10,
-    "tagsPerAccount": 20,
+    "parallelAccounts": 100,
+    "accountsPerBatch": 100,
     "tagsPerComment": {
-      "min": 6,
-      "max": 8
+      "min": 7,
+      "max": 9
     },
     "commentsPerAccount": {
-      "min": 4,
-      "max": 6
+      "min": 5,
+      "max": 7
     },
     "pauseAfterComments": 50
   }

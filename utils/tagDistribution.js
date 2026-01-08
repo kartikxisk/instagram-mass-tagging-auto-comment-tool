@@ -45,20 +45,19 @@ function getRandomTagsForAccount(allTags, count = 60) {
 /**
  * Generate comment batches for an account
  * Each account gets unique tags, split into comments based on settings
- * @param {string[]} allTags - All available tags
+ * @param {string[]} allTags - All available tags (already allocated for this account)
  * @param {Object} config - Configuration object with settings
- * @param {number} config.tagsPerAccount - Total tags per account (default 60)
  * @param {Object} config.tagsPerComment - Tags per comment settings
  * @param {number} config.tagsPerComment.min - Minimum tags per comment (default 10)
  * @param {number} config.tagsPerComment.max - Maximum tags per comment (default 12)
  * @returns {Object} - { tags: string[], commentBatches: string[][] }
  */
 function generateAccountCommentBatches(allTags, config = {}) {
-  const tagsPerAccount = config.tagsPerAccount || 60;
   const minTagsPerComment = config.tagsPerComment?.min || 10;
   const maxTagsPerComment = config.tagsPerComment?.max || 12;
   
-  const accountTags = getRandomTagsForAccount(allTags, tagsPerAccount);
+  // Use all provided tags (already allocated by tagTracker)
+  const accountTags = [...allTags];
   const commentBatches = [];
   let remaining = [...accountTags];
   

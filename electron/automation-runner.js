@@ -302,7 +302,10 @@ class AutomationRunner extends EventEmitter {
       }
 
       // Get only untagged users for this account (thread-safe via tagTracker)
-      const tagsPerAccount = config.settings?.tagsPerAccount || 60;
+      // Calculate tagsPerAccount dynamically from settings
+      const maxComments = config.settings?.commentsPerAccount?.max || 7;
+      const maxTagsPerComment = config.settings?.tagsPerComment?.max || 12;
+      const tagsPerAccount = maxComments * maxTagsPerComment; // e.g., 7 comments * 12 tags = 84 tags max
       const untaggedForAccount = utils.tagTracker.getNextBatch(allTags, tagsPerAccount);
       
       if (untaggedForAccount.length === 0) {

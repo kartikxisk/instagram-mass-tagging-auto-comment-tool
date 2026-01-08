@@ -339,7 +339,33 @@ ipcMain.handle('select-excel-file', async () => {
     return { success: false, canceled: true };
   }
 
-  return { success: true, filePath: result.filePaths[0] };
+  const filePath = result.filePaths[0];
+  
+  // Parse Excel to get total mentionable tags count
+  let totalTags = 0;
+  try {
+    const parseExcel = require('../utils/parseExcel');
+    const usernames = parseExcel.loadAllUsernames(filePath, false);
+    totalTags = usernames.length;
+  } catch (error) {
+    console.error('Error parsing Excel for tag count:', error);
+  }
+
+  return { success: true, filePath, totalTags };
+});
+
+/**
+ * Get Excel tags count from existing file
+ */
+ipcMain.handle('get-excel-tags-count', async (event, filePath) => {
+  try {
+    const parseExcel = require('../utils/parseExcel');
+    const usernames = parseExcel.loadAllUsernames(filePath, false);
+    return { success: true, totalTags: usernames.length };
+  } catch (error) {
+    console.error('Error getting Excel tags count:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 /**

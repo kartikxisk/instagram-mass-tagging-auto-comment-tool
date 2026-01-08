@@ -1,11 +1,10 @@
 {
   "settings": {
-    "parallelAccounts": 3,
+    "parallelAccounts": 100,
     "accountsPerBatch": 100,
-    "tagsPerAccount": 60,
     "tagsPerComment": {
-      "min": 10,
-      "max": 12
+      "min": 7,
+      "max": 9
     },
     "commentsPerAccount": {
       "min": 5,

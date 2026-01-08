@@ -245,7 +245,6 @@ Edit `config/accounts.json`:
   "targetPost": "https://www.instagram.com/reel/YOUR_REEL_ID/",
   "settings": {
     "accountsPerBatch": 100,
-    "tagsPerAccount": 60,
     "tagsPerComment": { "min": 10, "max": 12 },
     "commentsPerAccount": { "min": 5, "max": 7 },
     "pauseAfterComments": 50
