@@ -29,6 +29,8 @@ const TRACKER_FILE = path.join(TRACKER_DIR, 'tagged_users.json');
 let taggedUsers = new Set();
 let pendingTags = new Set(); // Tags currently being processed
 let sessionId = null;
+let successfulComments = 0;
+let failedComments = 0;
 
 /**
  * Initialize tracker - load from file or start fresh
@@ -46,6 +48,8 @@ function initialize(freshStart = false) {
     taggedUsers = new Set();
     pendingTags = new Set();
     sessionId = Date.now().toString();
+    successfulComments = 0;
+    failedComments = 0;
     save();
     return { totalTagged: 0, sessionId };
   }
@@ -56,15 +60,21 @@ function initialize(freshStart = false) {
       const data = JSON.parse(fs.readFileSync(TRACKER_FILE, 'utf8'));
       taggedUsers = new Set(data.taggedUsers || []);
       sessionId = data.sessionId || Date.now().toString();
+      successfulComments = data.successfulComments || 0;
+      failedComments = data.failedComments || 0;
       console.log(`📊 Loaded ${taggedUsers.size} previously tagged users`);
     } else {
       taggedUsers = new Set();
       sessionId = Date.now().toString();
+      successfulComments = 0;
+      failedComments = 0;
     }
   } catch (error) {
     console.error('Error loading tag tracker:', error.message);
     taggedUsers = new Set();
     sessionId = Date.now().toString();
+    successfulComments = 0;
+    failedComments = 0;
   }
 
   pendingTags = new Set();
@@ -79,6 +89,8 @@ function save() {
     const data = {
       sessionId,
       taggedUsers: Array.from(taggedUsers),
+      successfulComments,
+      failedComments,
       lastUpdated: new Date().toISOString()
     };
     fs.writeFileSync(TRACKER_FILE, JSON.stringify(data, null, 2));
@@ -130,6 +142,7 @@ function markAsTagged(usernames) {
     pendingTags.delete(normalized);
     taggedUsers.add(normalized);
   }
+  successfulComments++;
   save();
 }
 
@@ -142,17 +155,27 @@ function releaseTags(usernames) {
     const normalized = username.toLowerCase().replace('@', '');
     pendingTags.delete(normalized);
   }
+  failedComments++;
+  save(); // Persist the failed comment count
 }
 
 /**
  * Get statistics
- * @returns {Object} - { totalTagged, pending, sessionId }
+ * @returns {Object} - { totalTagged, pending, sessionId, successRate }
  */
 function getStats() {
+  const totalComments = successfulComments + failedComments;
+  const successRate = totalComments > 0 
+    ? Math.round((successfulComments / totalComments) * 100) 
+    : 0;
+  
   return {
     totalTagged: taggedUsers.size,
     pending: pendingTags.size,
-    sessionId
+    sessionId,
+    successfulComments,
+    failedComments,
+    successRate: `${successRate}%`
   };
 }
 
@@ -163,6 +186,8 @@ function reset() {
   taggedUsers = new Set();
   pendingTags = new Set();
   sessionId = Date.now().toString();
+  successfulComments = 0;
+  failedComments = 0;
   save();
 }
 

@@ -52,33 +52,24 @@ async function saveCookies(page, username) {
 async function loadCookies(page, username) {
   try {
     const cookiePath = path.join(COOKIES_DIR, `${username}.json`);
+    console.log(`🔍 [${username}] Looking for cookies at: ${cookiePath}`);
+    
     if (fs.existsSync(cookiePath)) {
       const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
       
-      // Check if cookies are expired
-      // Session cookies have expires = -1 or 0 or undefined, these should be kept
-      const now = Date.now() / 1000;
-      const validCookies = cookies.filter(cookie => {
-        // Session cookies (no expiry or -1) are always valid
-        if (!cookie.expires || cookie.expires === -1 || cookie.expires === 0) {
-          return true;
-        }
-        // Check if cookie has expired
-        if (cookie.expires > 0 && cookie.expires < now) {
-          return false;
-        }
+      if (cookies.length > 0) {
+        await page.setCookie(...cookies);
+        console.log(`🍪 [${username}] Loaded ${cookies.length} cookies`);
         return true;
-      });
-      
-      if (validCookies.length > 0) {
-        await page.setCookie(...validCookies);
-        console.log(`🍪 Loaded ${validCookies.length} cookies for ${username}`);
-        return true;
+      } else {
+        console.log(`⚠️ [${username}] Cookie file exists but is empty`);
       }
+    } else {
+      console.log(`⚠️ [${username}] No cookie file found`);
     }
     return false;
   } catch (error) {
-    console.error(`⚠️ Failed to load cookies for ${username}: ${error.message}`);
+    console.error(`❌ [${username}] Failed to load cookies: ${error.message}`);
     return false;
   }
 }
@@ -130,17 +121,36 @@ async function login(page, account, maxRetries = 3) {
         const acceptCookiesBtn = await page.$('button[class*="aOOlW"]');
         if (acceptCookiesBtn) {
           await acceptCookiesBtn.click();
-          await page.waitForTimeout(1000);
+          await new Promise(r => setTimeout(r, 1000));
         }
       } catch (e) {
         // Cookie popup might not appear, continue
       }
 
-      // Wait for login form
-      await page.waitForSelector('input[name="username"]', { visible: true, timeout: 20000 });
+      // Wait for either old or new login form
+      // Old form: input[name="username"], input[name="password"]
+      // New Meta form: input[name="email"], input[name="pass"]
+      let usernameSelector = null;
+      let passwordSelector = null;
+      
+      try {
+        await page.waitForSelector('input[name="username"]', { visible: true, timeout: 5000 });
+        usernameSelector = 'input[name="username"]';
+        passwordSelector = 'input[name="password"]';
+        console.log(`📝 [${account.username}] Detected OLD Instagram login form`);
+      } catch (e) {
+        try {
+          await page.waitForSelector('input[name="email"]', { visible: true, timeout: 10000 });
+          usernameSelector = 'input[name="email"]';
+          passwordSelector = 'input[name="pass"]';
+          console.log(`📝 [${account.username}] Detected NEW Meta login form`);
+        } catch (e2) {
+          throw new Error('Could not find login form');
+        }
+      }
       
       // Clear any existing input and type username with random delays
-      const usernameInput = await page.$('input[name="username"]');
+      const usernameInput = await page.$(usernameSelector);
       await usernameInput.click({ clickCount: 3 });
       await page.keyboard.press('Backspace');
       
@@ -150,13 +160,36 @@ async function login(page, account, maxRetries = 3) {
       }
       
       // Type password
-      await page.click('input[name="password"]');
+      await page.click(passwordSelector);
       for (const char of account.password) {
         await page.keyboard.type(char, { delay: Math.random() * 100 + 50 });
       }
       
-      // Click login button
-      await page.keyboard.press('Enter');
+      // Click login button - handle both old and new forms
+      const loginClicked = await page.evaluate(() => {
+        // Try old submit button first
+        const submitBtn = document.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.click();
+          return true;
+        }
+        
+        // Try new Meta login button
+        const buttons = document.querySelectorAll('div[role="button"]');
+        for (const btn of buttons) {
+          if (btn.innerText.trim() === 'Log in') {
+            btn.click();
+            return true;
+          }
+        }
+        
+        return false;
+      });
+      
+      if (!loginClicked) {
+        // Fallback: press Enter
+        await page.keyboard.press('Enter');
+      }
       
       // Wait for navigation or error
       await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});

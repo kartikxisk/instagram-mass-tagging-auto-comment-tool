@@ -150,34 +150,153 @@ async function simulateReading(page, durationSeconds = 5) {
  * @param {Object} page - Puppeteer page
  */
 async function setupHumanBehavior(page) {
-  // Set realistic viewport
+  // Set realistic viewport with device scale factor
   const viewports = [
-    { width: 1920, height: 1080 },
-    { width: 1366, height: 768 },
-    { width: 1536, height: 864 },
-    { width: 1440, height: 900 },
-    { width: 1280, height: 720 }
+    { width: 1920, height: 1080, deviceScaleFactor: 1 },
+    { width: 1366, height: 768, deviceScaleFactor: 1 },
+    { width: 1536, height: 864, deviceScaleFactor: 1.25 },
+    { width: 1440, height: 900, deviceScaleFactor: 2 },
+    { width: 1280, height: 720, deviceScaleFactor: 1 },
+    { width: 2560, height: 1440, deviceScaleFactor: 1 },
+    { width: 1680, height: 1050, deviceScaleFactor: 1 }
   ];
   
   const viewport = viewports[Math.floor(Math.random() * viewports.length)];
   await page.setViewport(viewport);
   
-  // Override navigator properties to look more human
+  // Comprehensive stealth overrides
   await page.evaluateOnNewDocument(() => {
     // Override webdriver property
     Object.defineProperty(navigator, 'webdriver', {
-      get: () => false,
+      get: () => undefined,
     });
     
-    // Override plugins
+    // Delete webdriver property entirely
+    delete navigator.__proto__.webdriver;
+    
+    // Override chrome property
+    window.chrome = {
+      runtime: {},
+      loadTimes: function() {},
+      csi: function() {},
+      app: {}
+    };
+    
+    // Override permissions
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+      parameters.name === 'notifications' ?
+        Promise.resolve({ state: Notification.permission }) :
+        originalQuery(parameters)
+    );
+    
+    // Override plugins to look realistic
     Object.defineProperty(navigator, 'plugins', {
-      get: () => [1, 2, 3, 4, 5],
+      get: () => {
+        const plugins = [
+          { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+          { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+          { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' }
+        ];
+        plugins.length = 3;
+        return plugins;
+      },
     });
     
     // Override languages
     Object.defineProperty(navigator, 'languages', {
-      get: () => ['en-US', 'en'],
+      get: () => ['en-US', 'en', 'en-GB'],
     });
+    
+    // Override platform based on user agent
+    Object.defineProperty(navigator, 'platform', {
+      get: () => {
+        const platforms = ['Win32', 'MacIntel', 'Linux x86_64'];
+        return platforms[Math.floor(Math.random() * platforms.length)];
+      },
+    });
+    
+    // Override hardware concurrency (CPU cores)
+    Object.defineProperty(navigator, 'hardwareConcurrency', {
+      get: () => [4, 8, 12, 16][Math.floor(Math.random() * 4)],
+    });
+    
+    // Override device memory
+    Object.defineProperty(navigator, 'deviceMemory', {
+      get: () => [4, 8, 16, 32][Math.floor(Math.random() * 4)],
+    });
+    
+    // Override connection info
+    Object.defineProperty(navigator, 'connection', {
+      get: () => ({
+        effectiveType: '4g',
+        rtt: Math.floor(Math.random() * 100) + 50,
+        downlink: Math.random() * 10 + 5,
+        saveData: false
+      }),
+    });
+    
+    // Override WebGL vendor and renderer
+    const getParameterProxyHandler = {
+      apply: function(target, thisArg, argumentsList) {
+        const param = argumentsList[0];
+        const gl = thisArg;
+        // UNMASKED_VENDOR_WEBGL
+        if (param === 37445) {
+          return 'Google Inc. (Intel)';
+        }
+        // UNMASKED_RENDERER_WEBGL
+        if (param === 37446) {
+          return 'ANGLE (Intel, Intel(R) UHD Graphics 630, OpenGL 4.1)';
+        }
+        return target.apply(thisArg, argumentsList);
+      }
+    };
+    
+    // Apply to WebGL
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (gl) {
+        gl.getParameter = new Proxy(gl.getParameter, getParameterProxyHandler);
+      }
+      const gl2 = canvas.getContext('webgl2');
+      if (gl2) {
+        gl2.getParameter = new Proxy(gl2.getParameter, getParameterProxyHandler);
+      }
+    } catch (e) {}
+    
+    // Override toString methods to hide proxy
+    const originalToString = Function.prototype.toString;
+    Function.prototype.toString = function() {
+      if (this === window.navigator.permissions.query) {
+        return 'function query() { [native code] }';
+      }
+      return originalToString.call(this);
+    };
+    
+    // Add realistic screen properties
+    Object.defineProperty(screen, 'availWidth', { get: () => window.innerWidth });
+    Object.defineProperty(screen, 'availHeight', { get: () => window.innerHeight });
+    Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
+    Object.defineProperty(screen, 'pixelDepth', { get: () => 24 });
+    
+    // Disable automation-related properties
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      get: () => 0,
+    });
+    
+    // Add realistic battery API
+    if (navigator.getBattery) {
+      navigator.getBattery = () => Promise.resolve({
+        charging: true,
+        chargingTime: 0,
+        dischargingTime: Infinity,
+        level: 1.0,
+        addEventListener: () => {},
+        removeEventListener: () => {}
+      });
+    }
   });
 }
 

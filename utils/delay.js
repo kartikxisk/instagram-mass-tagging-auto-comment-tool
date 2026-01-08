@@ -32,12 +32,12 @@ async function randomDelay(min, max, silent = false) {
 }
 
 /**
- * Delay between comments (35-120 seconds as per safety rules)
+ * Delay between comments (60-180 seconds - increased for safety)
  * @returns {Promise}
  */
 async function delayBetweenComments() {
-  const min = 35000;  // 35 seconds
-  const max = 120000; // 120 seconds
+  const min = 60000;  // 60 seconds (increased from 35)
+  const max = 180000; // 180 seconds (increased from 120)
   const ms = Math.floor(Math.random() * (max - min + 1)) + min;
   console.log(`⏳ Comment delay: ${(ms / 1000).toFixed(1)}s`);
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -48,20 +48,20 @@ async function delayBetweenComments() {
  * @returns {Promise}
  */
 async function delayBetweenAccounts() {
-  const min = 5000;  // 5 seconds
-  const max = 20000; // 20 seconds
+  const min = 30000;  // 30 seconds (increased from 5)
+  const max = 60000;  // 60 seconds (increased from 20)
   const ms = Math.floor(Math.random() * (max - min + 1)) + min;
   console.log(`⏳ Account delay: ${(ms / 1000).toFixed(1)}s`);
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
- * Long pause after 50 comments (10-20 minutes as per safety rules)
+ * Long pause after 30 comments (15-30 minutes - increased for safety)
  * @returns {Promise}
  */
 async function longPause() {
-  const min = 10 * 60 * 1000;  // 10 minutes
-  const max = 20 * 60 * 1000;  // 20 minutes
+  const min = 15 * 60 * 1000;  // 15 minutes (increased from 10)
+  const max = 30 * 60 * 1000;  // 30 minutes (increased from 20)
   const ms = Math.floor(Math.random() * (max - min + 1)) + min;
   console.log(`⏸️ Long pause: ${(ms / 60000).toFixed(1)} minutes`);
   return new Promise(resolve => setTimeout(resolve, ms));

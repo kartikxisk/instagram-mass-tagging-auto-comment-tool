@@ -505,6 +505,7 @@ input::placeholder {
 .log-entry.log-error .log-message { color: var(--error); }
 .log-entry.log-warning .log-message { color: var(--warning); }
 .log-entry.log-info .log-message { color: var(--info); }
+.log-entry.log-countdown .log-message { color: #f39c12; font-weight: 500; }
 
 .logs-actions {
   display: flex;

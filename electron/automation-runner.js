@@ -7,6 +7,7 @@ const EventEmitter = require('events');
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
+const { execSync } = require('child_process');
 
 // Import automation utilities
 const puppeteer = require('puppeteer-extra');
@@ -14,13 +15,46 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
 /**
- * Get user data path for storing app data
+ * Get user data path for storing app config and data files
+ * Uses project folder during development, app data when packaged
  */
 function getAppDataPath() {
-  if (app.isPackaged) {
-    return app.getPath('userData');
+  try {
+    if (app.isPackaged) {
+      return app.getPath('userData');
+    }
+    // Development: use project folder
+    return path.join(__dirname, '..');
+  } catch (e) {
+    // Fallback for non-Electron context
+    return path.join(__dirname, '..');
   }
-  return path.join(__dirname, '..');
+}
+
+/**
+ * Get chrome profiles directory path (always in temp/app data, never in project folder)
+ */
+function getChromeProfilesPath() {
+  try {
+    return path.join(app.getPath('userData'), 'chrome-profiles');
+  } catch (e) {
+    const os = require('os');
+    return path.join(os.tmpdir(), 'instabot-chrome-profiles');
+  }
+}
+
+/**
+ * Delete a chrome profile directory safely
+ * @param {string} profilePath - Path to the profile directory
+ */
+function deleteProfileDirectory(profilePath) {
+  try {
+    if (fs.existsSync(profilePath)) {
+      fs.rmSync(profilePath, { recursive: true, force: true });
+    }
+  } catch (e) {
+    console.log(`Could not delete profile directory: ${e.message}`);
+  }
 }
 
 /**
@@ -36,12 +70,102 @@ function getPaths() {
   };
 }
 
+/**
+ * Find the system-installed Chrome/Chromium browser path
+ * Supports macOS, Windows, and Linux
+ * @returns {string|null} Path to Chrome executable or null if not found
+ */
+function findSystemChrome() {
+  const platform = process.platform;
+  
+  // Common Chrome paths for each OS
+  const chromePaths = {
+    darwin: [
+      // macOS paths
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+      `${process.env.HOME}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
+      `${process.env.HOME}/Applications/Chromium.app/Contents/MacOS/Chromium`
+    ],
+    win32: [
+      // Windows paths
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      `${process.env.LOCALAPPDATA}\\Google\\Chrome\\Application\\chrome.exe`,
+      `${process.env.PROGRAMFILES}\\Google\\Chrome\\Application\\chrome.exe`,
+      `${process.env['PROGRAMFILES(X86)']}\\Google\\Chrome\\Application\\chrome.exe`,
+      'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+      `${process.env.LOCALAPPDATA}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+      'C:\\Program Files\\Chromium\\Application\\chrome.exe',
+      `${process.env.LOCALAPPDATA}\\Chromium\\Application\\chrome.exe`
+    ],
+    linux: [
+      // Linux paths
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+      '/snap/bin/chromium',
+      '/usr/bin/brave-browser',
+      '/opt/google/chrome/chrome',
+      '/opt/google/chrome/google-chrome',
+      '/opt/chromium/chromium',
+      `${process.env.HOME}/.local/bin/google-chrome`
+    ]
+  };
+  
+  const paths = chromePaths[platform] || [];
+  
+  // Check each path
+  for (const chromePath of paths) {
+    if (chromePath && fs.existsSync(chromePath)) {
+      return chromePath;
+    }
+  }
+  
+  // Try to find Chrome using 'which' command on Unix systems
+  if (platform === 'darwin' || platform === 'linux') {
+    try {
+      const whichResult = execSync('which google-chrome || which google-chrome-stable || which chromium || which chromium-browser', {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      }).trim();
+      if (whichResult && fs.existsSync(whichResult)) {
+        return whichResult;
+      }
+    } catch (e) {
+      // Command failed, Chrome not in PATH
+    }
+  }
+  
+  // Try Windows registry as last resort
+  if (platform === 'win32') {
+    try {
+      const regResult = execSync('reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe" /ve', {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      const match = regResult.match(/REG_SZ\s+(.+)/);
+      if (match && match[1] && fs.existsSync(match[1].trim())) {
+        return match[1].trim();
+      }
+    } catch (e) {
+      // Registry query failed
+    }
+  }
+  
+  return null;
+}
+
 class AutomationRunner extends EventEmitter {
   constructor() {
     super();
     this.isRunning = false;
     this.shouldStop = false;
     this.browsers = []; // Track all browser instances for parallel execution
+    this.utils = null; // Store utils reference for class methods
     this.stats = {
       accountsProcessed: 0,
       commentsPosted: 0,
@@ -84,6 +208,7 @@ class AutomationRunner extends EventEmitter {
     this.shouldStop = false;
     this.browsers = [];
     this.activeWorkers = 0;
+    this.utils = null; // Reset utils
     this.resetStats();
 
     try {
@@ -100,6 +225,7 @@ class AutomationRunner extends EventEmitter {
       this.emit('status', { status: 'running', message: 'Loading utilities...' });
       
       const utils = this.loadUtilities();
+      this.utils = utils; // Store for class methods
       
       // Initialize global tag tracker (continue from previous session)
       const trackerStats = utils.tagTracker.initialize(options.freshStart || false);
@@ -232,18 +358,54 @@ class AutomationRunner extends EventEmitter {
       this.emit('log', { type: 'warning', message: `⚠️ No proxy assigned`, username: account.username });
     }
 
-    // Launch browser
+    // Find system Chrome for more stealth
+    const systemChrome = findSystemChrome();
+    if (systemChrome) {
+      this.emit('log', { type: 'info', message: `🌐 Using system Chrome`, username: account.username });
+    }
+
+    // Create unique user data directory for this account to isolate sessions
+    const userDataDir = path.join(getChromeProfilesPath(), account.username);
+    if (!fs.existsSync(userDataDir)) {
+      fs.mkdirSync(userDataDir, { recursive: true });
+    }
+
+    // Launch browser with enhanced anti-detection args
     const launchOptions = {
       headless: options.headless !== false ? 'new' : false,
+      executablePath: systemChrome || undefined, // Use system Chrome if found
+      userDataDir: userDataDir, // Use persistent profile per account
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-blink-features=AutomationControlled',
         '--disable-infobars',
-        '--start-maximized'
+        '--start-maximized',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-site-isolation-trials',
+        '--disable-features=BlockInsecurePrivateNetworkRequests',
+        '--ignore-certificate-errors',
+        '--ignore-certificate-errors-spki-list',
+        '--disable-extensions',
+        '--disable-default-apps',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-component-update',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--no-first-run',
+        '--safebrowsing-disable-auto-update',
+        `--window-size=${1920 + Math.floor(Math.random() * 200)},${1080 + Math.floor(Math.random() * 100)}`
       ],
-      defaultViewport: null // Use full screen size
+      defaultViewport: null, // Use full screen size
+      ignoreDefaultArgs: ['--enable-automation']
     };
 
     // Setup proxy
@@ -375,9 +537,9 @@ class AutomationRunner extends EventEmitter {
           // Emit stats update in real-time
           this.emitStats();
           
-          // Log global progress
+          // Log global progress with username context
           const trackerStats = utils.tagTracker.getStats();
-          this.emit('log', { type: 'info', message: `📊 Global progress: ${trackerStats.totalTagged} total tagged, ${trackerStats.pending} pending` });
+          this.emit('log', { type: 'success', message: `📊 Tag Tracker Updated: ${trackerStats.totalTagged} total tagged, ${trackerStats.pending} pending`, username: account.username });
           
           // Log to file
           utils.logger.logMention({
@@ -407,8 +569,16 @@ class AutomationRunner extends EventEmitter {
           // Delay before starting fresh browser (simulate user break)
           if (i < commentsToPost - 1 && !this.shouldStop) {
             const delayTime = Math.floor(Math.random() * 45000) + 45000; // 45-90 seconds
-            this.emit('log', { type: 'info', message: `⏳ Waiting ${Math.round(delayTime/1000)}s before fresh browser...`, username: account.username });
-            await this.sleep(delayTime);
+            const shouldContinue = await this.sleepWithCountdown(delayTime, account.username, 'Next comment');
+            if (!shouldContinue) {
+              // Release remaining tags
+              for (let j = i + 1; j < commentsToPost; j++) {
+                if (commentBatches[j]) {
+                  utils.tagTracker.releaseTags(commentBatches[j]);
+                }
+              }
+              break;
+            }
           }
           
           // Start fresh browser with new proxy if there are more comments
@@ -420,19 +590,43 @@ class AutomationRunner extends EventEmitter {
             if (newProxy) {
               this.emit('log', { type: 'info', message: `🌐 New proxy: ${newProxy.address}:${newProxy.port}`, username: account.username });
             }
+            this.emit('log', { type: 'info', message: `🔄 New User Agent applied`, username: account.username });
             
-            // Re-initialize browser and page
+            // Re-initialize browser with system Chrome and enhanced anti-detection args
             const launchOptions = {
               headless: options.headless !== false ? 'new' : false,
+              executablePath: systemChrome || undefined,
+              userDataDir: userDataDir,
               args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-blink-features=AutomationControlled',
                 '--disable-infobars',
-                '--start-maximized'
+                '--start-maximized',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-site-isolation-trials',
+                '--disable-features=BlockInsecurePrivateNetworkRequests',
+                '--ignore-certificate-errors',
+                '--ignore-certificate-errors-spki-list',
+                '--disable-extensions',
+                '--disable-default-apps',
+                '--disable-component-extensions-with-background-pages',
+                '--disable-component-update',
+                '--no-first-run',
+                '--no-default-browser-check',
+                '--disable-background-networking',
+                '--disable-sync',
+                '--disable-translate',
+                '--hide-scrollbars',
+                '--metrics-recording-only',
+                '--mute-audio',
+                '--safebrowsing-disable-auto-update',
+                `--window-size=${1920 + Math.floor(Math.random() * 200)},${1080 + Math.floor(Math.random() * 100)}`
               ],
-              defaultViewport: null
+              defaultViewport: null,
+              ignoreDefaultArgs: ['--enable-automation']
             };
             
             const { launchArgs, authenticateConfig } = utils.proxySetup.setupProxyArgs(newProxy);
@@ -541,8 +735,16 @@ class AutomationRunner extends EventEmitter {
           // Delay before trying again with fresh browser
           if (i < commentsToPost - 1 && !this.shouldStop) {
             const delayTime = Math.floor(Math.random() * 45000) + 45000; // 45-90 seconds
-            this.emit('log', { type: 'info', message: `⏳ Waiting ${Math.round(delayTime/1000)}s before retry...`, username: account.username });
-            await this.sleep(delayTime);
+            const shouldContinue = await this.sleepWithCountdown(delayTime, account.username, 'Retry comment');
+            if (!shouldContinue) {
+              // Release remaining tags
+              for (let j = i + 1; j < commentsToPost; j++) {
+                if (commentBatches[j]) {
+                  utils.tagTracker.releaseTags(commentBatches[j]);
+                }
+              }
+              break;
+            }
             
             // Start fresh browser for retry
             this.emit('log', { type: 'info', message: `🚀 Starting fresh browser for retry...`, username: account.username });
@@ -552,18 +754,42 @@ class AutomationRunner extends EventEmitter {
             if (newProxy) {
               this.emit('log', { type: 'info', message: `🌐 New proxy: ${newProxy.address}:${newProxy.port}`, username: account.username });
             }
+            this.emit('log', { type: 'info', message: `🔄 New User Agent applied`, username: account.username });
             
             const launchOptions = {
               headless: options.headless !== false ? 'new' : false,
+              executablePath: systemChrome || undefined,
+              userDataDir: userDataDir,
               args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-blink-features=AutomationControlled',
                 '--disable-infobars',
-                '--start-maximized'
+                '--start-maximized',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-site-isolation-trials',
+                '--disable-features=BlockInsecurePrivateNetworkRequests',
+                '--ignore-certificate-errors',
+                '--ignore-certificate-errors-spki-list',
+                '--disable-extensions',
+                '--disable-default-apps',
+                '--disable-component-extensions-with-background-pages',
+                '--disable-component-update',
+                '--no-first-run',
+                '--no-default-browser-check',
+                '--disable-background-networking',
+                '--disable-sync',
+                '--disable-translate',
+                '--hide-scrollbars',
+                '--metrics-recording-only',
+                '--mute-audio',
+                '--safebrowsing-disable-auto-update',
+                `--window-size=${1920 + Math.floor(Math.random() * 200)},${1080 + Math.floor(Math.random() * 100)}`
               ],
-              defaultViewport: null
+              defaultViewport: null,
+              ignoreDefaultArgs: ['--enable-automation']
             };
             
             const { launchArgs, authenticateConfig } = utils.proxySetup.setupProxyArgs(newProxy);
@@ -653,6 +879,10 @@ class AutomationRunner extends EventEmitter {
           // Browser might already be closed
         }
       }
+      
+      // Clean up the chrome profile directory to save disk space
+      const userDataDir = path.join(getChromeProfilesPath(), account.username);
+      deleteProfileDirectory(userDataDir);
     }
   }
 
@@ -875,7 +1105,7 @@ class AutomationRunner extends EventEmitter {
       // Wait for comment to be posted (longer wait for Instagram to process)
       await utils.humanBehavior.randomWait(2500, 4000);
 
-      // Check for "Couldn't post comment" error
+      // Check for errors including "Couldn't post comment" and "automated behavior"
       const errorDetected = await page.evaluate(() => {
         const errorTexts = [
           "Couldn't post comment",
@@ -885,11 +1115,37 @@ class AutomationRunner extends EventEmitter {
           "Action Blocked",
           "action blocked",
           "We restrict certain",
-          "temporarily blocked"
+          "temporarily blocked",
+          "automated behavior",
+          "suspect automated",
+          "temporarily restricted",
+          "suspicious activity"
         ];
         const bodyText = document.body.innerText;
         return errorTexts.some(text => bodyText.toLowerCase().includes(text.toLowerCase()));
       });
+
+      // Try to dismiss any popup that appeared
+      try {
+        const dismissBtn = await page.evaluate(() => {
+          const buttons = Array.from(document.querySelectorAll('button'));
+          const dismissButton = buttons.find(btn => 
+            btn.textContent.toLowerCase().includes('dismiss') || 
+            btn.textContent.toLowerCase().includes('ok') ||
+            btn.textContent.toLowerCase().includes('got it')
+          );
+          if (dismissButton) {
+            dismissButton.click();
+            return true;
+          }
+          return false;
+        });
+        if (dismissBtn) {
+          await utils.humanBehavior.randomWait(1000, 2000);
+        }
+      } catch (e) {
+        // Popup might not be present
+      }
 
       if (errorDetected) {
         return { success: false, error: "Couldn't post comment - Instagram blocked this action", tagsPosted: 0 };
@@ -1019,7 +1275,7 @@ class AutomationRunner extends EventEmitter {
         const validCookies = cookies.filter(c => !c.expires || c.expires > now);
         
         if (validCookies.length > 0) {
-          this.emit('log', { type: 'info', message: `🍪 Loading ${validCookies.length} cookies for ${account.username}` });
+          this.emit('log', { type: 'info', message: `🍪 Loading ${validCookies.length} cookies`, username: account.username });
           await page.setCookie(...validCookies);
           
           // Go to Instagram and check if logged in
@@ -1031,26 +1287,26 @@ class AutomationRunner extends EventEmitter {
           });
           
           if (isLoggedIn) {
-            this.emit('log', { type: 'success', message: `🍪 Session restored for ${account.username}` });
+            this.emit('log', { type: 'success', message: `🍪 Session restored`, username: account.username });
             return { success: true, checkpoint: false, blocked: false, error: null };
           }
           
-          this.emit('log', { type: 'warning', message: `🍪 Session expired for ${account.username}, logging in fresh...` });
+          this.emit('log', { type: 'warning', message: `🍪 Session expired, logging in fresh...`, username: account.username });
         }
       } catch (e) {
-        this.emit('log', { type: 'warning', message: `⚠️ Failed to load cookies: ${e.message}` });
+        this.emit('log', { type: 'warning', message: `⚠️ Failed to load cookies: ${e.message}`, username: account.username });
       }
     }
     
     // No valid session, need to login
-    this.emit('log', { type: 'info', message: `🔐 No valid session for ${account.username}, logging in...` });
+    this.emit('log', { type: 'info', message: `🔐 No valid session, logging in...`, username: account.username });
     
     const loginUrl = 'https://www.instagram.com/accounts/login/';
     const maxRetries = 3;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        this.emit('log', { type: 'info', message: `🔐 Login attempt ${attempt}/${maxRetries} for ${account.username}` });
+        this.emit('log', { type: 'info', message: `🔐 Login attempt ${attempt}/${maxRetries}`, username: account.username });
         
         await page.goto(loginUrl, { waitUntil: 'networkidle2', timeout: 60000 });
         
@@ -1065,11 +1321,30 @@ class AutomationRunner extends EventEmitter {
           // Cookie popup might not appear
         }
         
-        // Wait for login form
-        await page.waitForSelector('input[name="username"]', { visible: true, timeout: 20000 });
+        // Wait for either old or new login form
+        // Old form: input[name="username"], input[name="password"]
+        // New Meta form: input[name="email"], input[name="pass"]
+        let usernameSelector = null;
+        let passwordSelector = null;
+        
+        try {
+          await page.waitForSelector('input[name="username"]', { visible: true, timeout: 5000 });
+          usernameSelector = 'input[name="username"]';
+          passwordSelector = 'input[name="password"]';
+          this.emit('log', { type: 'info', message: `📝 Detected OLD Instagram login form`, username: account.username });
+        } catch (e) {
+          try {
+            await page.waitForSelector('input[name="email"]', { visible: true, timeout: 10000 });
+            usernameSelector = 'input[name="email"]';
+            passwordSelector = 'input[name="pass"]';
+            this.emit('log', { type: 'info', message: `📝 Detected NEW Meta login form`, username: account.username });
+          } catch (e2) {
+            throw new Error('Could not find login form');
+          }
+        }
         
         // Type username
-        const usernameInput = await page.$('input[name="username"]');
+        const usernameInput = await page.$(usernameSelector);
         await usernameInput.click({ clickCount: 3 });
         await page.keyboard.press('Backspace');
         
@@ -1078,14 +1353,38 @@ class AutomationRunner extends EventEmitter {
         }
         
         // Type password
-        await page.click('input[name="password"]');
+        await page.click(passwordSelector);
         for (const char of account.password) {
           await page.keyboard.type(char, { delay: Math.random() * 100 + 50 });
         }
         
-        // Submit
-        await page.keyboard.press('Enter');
-        this.emit('log', { type: 'info', message: `⏳ Waiting for login response...` });
+        // Click login button - handle both old and new forms
+        const loginClicked = await page.evaluate(() => {
+          // Try old submit button first
+          const submitBtn = document.querySelector('button[type="submit"]');
+          if (submitBtn) {
+            submitBtn.click();
+            return true;
+          }
+          
+          // Try new Meta login button
+          const buttons = document.querySelectorAll('div[role="button"]');
+          for (const btn of buttons) {
+            if (btn.innerText.trim() === 'Log in') {
+              btn.click();
+              return true;
+            }
+          }
+          
+          return false;
+        });
+        
+        if (!loginClicked) {
+          // Fallback: press Enter
+          await page.keyboard.press('Enter');
+        }
+        
+        this.emit('log', { type: 'info', message: `⏳ Waiting for login response...`, username: account.username });
         
         await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
         
@@ -1093,27 +1392,45 @@ class AutomationRunner extends EventEmitter {
         
         // Check for checkpoint
         if (currentUrl.includes('challenge') || currentUrl.includes('checkpoint')) {
-          this.emit('log', { type: 'warning', message: `⚠️ Checkpoint detected for ${account.username}` });
+          this.emit('log', { type: 'warning', message: `⚠️ Checkpoint detected`, username: account.username });
           return { success: false, checkpoint: true, blocked: false, error: 'Checkpoint required' };
         }
         
-        // Check for blocked
+        // Check for blocked or automated behavior detection
         const blockedText = await page.evaluate(() => {
           const body = document.body.innerText.toLowerCase();
-          return body.includes('action blocked') || body.includes('try again later') ||
-                 body.includes('suspicious activity') || body.includes('we restrict certain');
+          return body.includes('action blocked') || 
+                 body.includes('try again later') ||
+                 body.includes('suspicious activity') || 
+                 body.includes('we restrict certain') ||
+                 body.includes('automated behavior') ||
+                 body.includes('suspect automated') ||
+                 body.includes('temporarily restricted') ||
+                 body.includes('temporarily blocked');
         });
         
+        // Try to dismiss "automated behavior" popup if present
+        try {
+          const dismissButton = await page.$('button:has-text("Dismiss")');
+          if (dismissButton) {
+            this.emit('log', { type: 'warning', message: `⚠️ Dismissing automated behavior popup`, username: account.username });
+            await dismissButton.click();
+            await this.sleep(2000);
+          }
+        } catch (e) {
+          // Popup might not be present
+        }
+        
         if (blockedText) {
-          this.emit('log', { type: 'error', message: `🚫 Account ${account.username} is blocked` });
-          return { success: false, checkpoint: false, blocked: true, error: 'Action blocked' };
+          this.emit('log', { type: 'error', message: `🚫 Account flagged - automated behavior detected`, username: account.username });
+          return { success: false, checkpoint: false, blocked: true, error: 'Automated behavior detected' };
         }
         
         // Check for wrong credentials
         const wrongCredentials = await page.$('p[data-testid="login-error-message"]');
         if (wrongCredentials) {
           const errorText = await wrongCredentials.evaluate(el => el.textContent);
-          this.emit('log', { type: 'error', message: `❌ Login error: ${errorText}` });
+          this.emit('log', { type: 'error', message: `❌ Login error: ${errorText}`, username: account.username });
           return { success: false, checkpoint: false, blocked: false, error: errorText };
         }
         
@@ -1125,7 +1442,7 @@ class AutomationRunner extends EventEmitter {
         });
         
         if (isLoggedIn || !currentUrl.includes('login')) {
-          this.emit('log', { type: 'success', message: `✅ Successfully logged in as ${account.username}` });
+          this.emit('log', { type: 'success', message: `✅ Successfully logged in`, username: account.username });
           
           // Save cookies
           const cookies = await page.cookies();
@@ -1133,15 +1450,15 @@ class AutomationRunner extends EventEmitter {
             fs.mkdirSync(COOKIES_DIR, { recursive: true });
           }
           fs.writeFileSync(cookiePath, JSON.stringify(cookies, null, 2));
-          this.emit('log', { type: 'info', message: `🍪 Cookies saved for ${account.username}` });
+          this.emit('log', { type: 'info', message: `🍪 Cookies saved`, username: account.username });
           
           return { success: true, checkpoint: false, blocked: false, error: null };
         }
         
-        this.emit('log', { type: 'warning', message: `⚠️ Login verification failed, retrying...` });
+        this.emit('log', { type: 'warning', message: `⚠️ Login verification failed, retrying...`, username: account.username });
         
       } catch (error) {
-        this.emit('log', { type: 'error', message: `❌ Login attempt ${attempt} error: ${error.message}` });
+        this.emit('log', { type: 'error', message: `❌ Login attempt ${attempt} error: ${error.message}`, username: account.username });
         if (attempt === maxRetries) {
           return { success: false, checkpoint: false, blocked: false, error: error.message };
         }
@@ -1166,7 +1483,20 @@ class AutomationRunner extends EventEmitter {
     this.emit('log', { type: 'warning', message: '⏹️ Stop requested. Finishing current task...' });
     this.emit('status', { status: 'stopping', message: 'Stopping automation...' });
     
-    // Close browser immediately to interrupt any ongoing operations
+    // Close all browser instances to interrupt any ongoing operations
+    if (this.browsers && this.browsers.length > 0) {
+      this.emit('log', { type: 'info', message: `🔄 Closing ${this.browsers.length} browser(s)...` });
+      for (const browser of this.browsers) {
+        try {
+          await browser.close();
+        } catch (e) {
+          // Browser might already be closed
+        }
+      }
+      this.browsers = [];
+    }
+    
+    // Also close legacy single browser reference if exists
     if (this.browser) {
       try {
         await this.browser.close();
@@ -1174,6 +1504,17 @@ class AutomationRunner extends EventEmitter {
         // Browser might already be closed
       }
       this.browser = null;
+    }
+    
+    // Clean up all chrome profile directories
+    this.emit('log', { type: 'info', message: '🧹 Cleaning up temporary browser profiles...' });
+    try {
+      const profilesPath = getChromeProfilesPath();
+      if (fs.existsSync(profilesPath)) {
+        fs.rmSync(profilesPath, { recursive: true, force: true });
+      }
+    } catch (e) {
+      this.emit('log', { type: 'warning', message: `⚠️ Could not clean up profiles: ${e.message}` });
     }
     
     this.isRunning = false;
@@ -1201,8 +1542,11 @@ class AutomationRunner extends EventEmitter {
       ? Math.round((this.stats.successfulComments / this.stats.commentsPosted) * 100)
       : 0;
 
-    // Get tagged count from global tracker
-    const trackerStats = utils.tagTracker.getStats();
+    // Get tagged count from global tracker (use this.utils stored from start())
+    let trackerStats = { totalTagged: 0 };
+    if (this.utils && this.utils.tagTracker) {
+      trackerStats = this.utils.tagTracker.getStats();
+    }
 
     this.emit('stats', {
       accounts: this.stats.accountsProcessed,
@@ -1262,6 +1606,45 @@ class AutomationRunner extends EventEmitter {
    */
   sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Sleep with countdown display - shows remaining time and can be stopped
+   * @param {number} totalMs - Total milliseconds to wait
+   * @param {string} username - Username for log context
+   * @param {string} reason - Reason for waiting (e.g., "Next comment")
+   * @returns {Promise<boolean>} - Returns true if completed, false if stopped
+   */
+  async sleepWithCountdown(totalMs, username, reason = 'Next action') {
+    const updateInterval = 5000; // Update every 5 seconds
+    let remaining = totalMs;
+    
+    while (remaining > 0 && !this.shouldStop) {
+      const waitTime = Math.min(updateInterval, remaining);
+      
+      // Show countdown
+      const remainingSecs = Math.ceil(remaining / 1000);
+      const mins = Math.floor(remainingSecs / 60);
+      const secs = remainingSecs % 60;
+      const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+      
+      this.emit('log', { 
+        type: 'countdown', 
+        message: `⏱️ ${reason} in ${timeStr}...`, 
+        username,
+        countdown: { remaining: remainingSecs, total: Math.ceil(totalMs / 1000) }
+      });
+      
+      await this.sleep(waitTime);
+      remaining -= waitTime;
+    }
+    
+    if (this.shouldStop) {
+      this.emit('log', { type: 'warning', message: `⏹️ Wait cancelled - stopping`, username });
+      return false;
+    }
+    
+    return true;
   }
 }
 

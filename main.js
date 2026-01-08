@@ -123,39 +123,64 @@ function getNextProxyForAccount(account, accountIndex) {
 /**
  * Check for action blocked or error popups
  * @param {Object} page - Puppeteer page
- * @returns {Object} - { blocked: boolean, checkpoint: boolean, message: string }
+ * @returns {Object} - { blocked: boolean, checkpoint: boolean, rateLimited: boolean, message: string }
  */
 async function checkForErrors(page) {
   try {
+    // Check for rate limiting (HTTP 429)
+    const isRateLimited = await page.evaluate(() => {
+      const bodyText = document.body.innerText.toLowerCase();
+      return bodyText.includes('429') || 
+             bodyText.includes('too many requests') ||
+             bodyText.includes("page isn't working") ||
+             bodyText.includes('rate limit');
+    });
+    
+    if (isRateLimited) {
+      return { blocked: false, checkpoint: false, rateLimited: true, message: 'Rate limited (HTTP 429)' };
+    }
+    
     // Check for action blocked
     const isBlocked = await page.evaluate(() => {
       const bodyText = document.body.innerText.toLowerCase();
       return bodyText.includes('action blocked') || 
              bodyText.includes('try again later') ||
              bodyText.includes('we restrict certain') ||
-             bodyText.includes('suspicious activity');
+             bodyText.includes('suspicious activity') ||
+             bodyText.includes("help us confirm it's you") ||
+             bodyText.includes('unusual activity');
     });
     
     if (isBlocked) {
-      return { blocked: true, checkpoint: false, message: 'Action blocked detected' };
+      return { blocked: true, checkpoint: false, rateLimited: false, message: 'Action blocked detected' };
     }
     
-    // Check for checkpoint
+    // Check for checkpoint / reCAPTCHA
     const url = page.url();
     if (url.includes('challenge') || url.includes('checkpoint')) {
-      return { blocked: false, checkpoint: true, message: 'Checkpoint required' };
+      return { blocked: false, checkpoint: true, rateLimited: false, message: 'Checkpoint required' };
+    }
+    
+    // Check for reCAPTCHA on page
+    const hasRecaptcha = await page.evaluate(() => {
+      return document.querySelector('iframe[src*="recaptcha"]') !== null ||
+             document.body.innerText.toLowerCase().includes("i'm not a robot");
+    });
+    
+    if (hasRecaptcha) {
+      return { blocked: false, checkpoint: true, rateLimited: false, message: 'reCAPTCHA detected' };
     }
     
     // Check for error popup
     const errorPopup = await page.$('div[role="alert"]');
     if (errorPopup) {
       const message = await errorPopup.evaluate(el => el.innerText);
-      return { blocked: false, checkpoint: false, message };
+      return { blocked: false, checkpoint: false, rateLimited: false, message };
     }
     
-    return { blocked: false, checkpoint: false, message: null };
+    return { blocked: false, checkpoint: false, rateLimited: false, message: null };
   } catch (error) {
-    return { blocked: false, checkpoint: false, message: null };
+    return { blocked: false, checkpoint: false, rateLimited: false, message: null };
   }
 }
 
@@ -172,6 +197,11 @@ async function postComment(page, tags, account) {
     const preCheck = await checkForErrors(page);
     if (preCheck.blocked || preCheck.checkpoint) {
       return { success: false, error: preCheck.message };
+    }
+    if (preCheck.rateLimited) {
+      console.log('⚠️ Rate limited! Taking a long break before retrying...');
+      await longPause();
+      return { success: false, error: 'Rate limited - taking a break' };
     }
     
     // Comment box selectors (multiple for resilience)
@@ -290,11 +320,11 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
     errors: []
   };
   
-  // Generate comment batches for this account
+  // Generate comment batches for this account (reduced for safety)
   const { commentBatches } = generateAccountCommentBatches(allTags);
   const commentsToPost = Math.min(
     commentBatches.length,
-    Math.floor(Math.random() * 3) + 5 // 5-7 comments
+    Math.floor(Math.random() * 2) + 2 // 2-3 comments per account (reduced from 5-7)
   );
   
   console.log(`\n${'='.repeat(50)}`);
@@ -395,12 +425,51 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
     
     console.log(`✅ Logged in as ${account.username}`);
     
-    // Navigate to target post
+    // Navigate to target post with retry logic for rate limiting
     console.log(`📍 Navigating to target post...`);
-    await page.goto(targetPost, { 
-      waitUntil: 'networkidle2',
-      timeout: 60000 
-    });
+    let navigationSuccess = false;
+    let navigationRetries = 0;
+    const maxNavigationRetries = 3;
+    
+    while (!navigationSuccess && navigationRetries < maxNavigationRetries) {
+      try {
+        await page.goto(targetPost, { 
+          waitUntil: 'networkidle2',
+          timeout: 60000 
+        });
+        
+        // Check for rate limiting after navigation
+        const navCheck = await checkForErrors(page);
+        if (navCheck.rateLimited) {
+          console.log(`⚠️ Rate limited on navigation (attempt ${navigationRetries + 1}/${maxNavigationRetries}). Waiting...`);
+          navigationRetries++;
+          if (navigationRetries < maxNavigationRetries) {
+            await longPause();
+            continue;
+          } else {
+            throw new Error('Rate limited after multiple attempts');
+          }
+        }
+        
+        if (navCheck.checkpoint) {
+          console.log(`⚠️ Checkpoint detected for ${account.username}`);
+          stats.recordCheckpoint(account.username);
+          accountResult.status = 'checkpoint';
+          return accountResult;
+        }
+        
+        navigationSuccess = true;
+      } catch (navError) {
+        navigationRetries++;
+        console.log(`⚠️ Navigation failed (attempt ${navigationRetries}/${maxNavigationRetries}): ${navError.message}`);
+        if (navigationRetries < maxNavigationRetries) {
+          console.log('🔄 Retrying after delay...');
+          await longPause();
+        } else {
+          throw navError;
+        }
+      }
+    }
     
     // Simulate human reading behavior
     console.log(`👀 Simulating reading behavior...`);
@@ -439,8 +508,8 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
           tagsCount: tags.length
         });
         
-        // Check if we need a long pause
-        if (globalCommentCount > 0 && globalCommentCount % 50 === 0) {
+        // Check if we need a long pause (reduced from 50 to 30 comments)
+        if (globalCommentCount > 0 && globalCommentCount % 30 === 0) {
           console.log(`\n⏸️ Reached ${globalCommentCount} comments, taking a long break...`);
           await longPause();
         }
@@ -622,6 +691,10 @@ async function main() {
   console.log(`📦 Total batches: ${batches.length}`);
   console.log(`\n🚀 Starting automation...\n`);
   
+  // Initial warmup delay to avoid immediate detection
+  console.log(`⏳ Warming up... waiting before starting to avoid detection...`);
+  await randomDelay(10000, 20000); // 10-20 second startup delay
+  
   // Process each batch
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
@@ -629,10 +702,10 @@ async function main() {
     
     await processBatch(batch, allTags, targetPost, i, startIndex);
     
-    // Pause between batches
+    // Longer pause between batches to avoid rate limiting
     if (i < batches.length - 1) {
-      console.log(`\n⏸️ Batch complete. Waiting before next batch...`);
-      await randomDelay(30000, 60000); // 30-60 seconds between batches
+      console.log(`\n⏸️ Batch complete. Taking a longer break before next batch...`);
+      await randomDelay(120000, 300000); // 2-5 minutes between batches (increased significantly)
     }
   }
   

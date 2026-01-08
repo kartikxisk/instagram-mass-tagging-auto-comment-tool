@@ -366,30 +366,40 @@ async function updateTagStats() {
 // ============================================
 
 async function refreshTrackerStats() {
-  log('info', 'Refreshing tag tracker statistics...');
-  
   const result = await window.electronAPI.getTrackerStats();
   
   if (result && result.success && result.stats) {
     const stats = result.stats;
     
-    // Update tracker stats display
-    elements.trackerTotalTagged.textContent = stats.totalUniqueUsersTagged || 0;
+    // Update tracker stats display - use totalUniqueUsersTagged which is mapped from totalTagged
+    const totalTagged = stats.totalUniqueUsersTagged || stats.totalTagged || 0;
+    const successfulComments = stats.successfulComments || 0;
+    const failedComments = stats.failedComments || 0;
+    
+    // Show tagged count with pending if any
+    if (stats.pending > 0) {
+      elements.trackerTotalTagged.textContent = `${totalTagged} (${stats.pending} pending)`;
+    } else {
+      elements.trackerTotalTagged.textContent = totalTagged;
+    }
+    
+    // Show success rate
     elements.trackerSuccessRate.textContent = stats.successRate || '0%';
+    
+    // Log the stats refresh with details
+    log('info', `📊 Stats: ${totalTagged} tagged | ${successfulComments} successful | ${failedComments} failed | ${stats.successRate}`);
     
     // Color code the success rate
     const rate = parseFloat(stats.successRate);
     if (rate >= 90) {
-      elements.trackerSuccessRate.className = 'tracker-stat-value success';
+      elements.trackerSuccessRate.className = 'stat-value success';
     } else if (rate >= 70) {
-      elements.trackerSuccessRate.className = 'tracker-stat-value warning';
+      elements.trackerSuccessRate.className = 'stat-value warning';
+    } else if (rate > 0) {
+      elements.trackerSuccessRate.className = 'stat-value error';
     } else {
-      elements.trackerSuccessRate.className = 'tracker-stat-value error';
+      elements.trackerSuccessRate.className = 'stat-value';
     }
-    
-    log('success', 'Tag tracker stats updated');
-  } else {
-    log('error', `Failed to get tracker stats: ${result?.error || 'Unknown error'}`);
   }
 }
 
@@ -409,7 +419,7 @@ async function resetTrackerConfirm() {
     // Update display
     elements.trackerTotalTagged.textContent = '0';
     elements.trackerSuccessRate.textContent = '0%';
-    elements.trackerSuccessRate.className = 'tracker-stat-value';
+    elements.trackerSuccessRate.className = 'stat-value';
     
   } else {
     log('error', `Failed to reset tracker: ${result?.error || 'Unknown error'}`);

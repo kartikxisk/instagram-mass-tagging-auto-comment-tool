@@ -30,6 +30,8 @@ out/
 
 cookies/
 cookies-1/
+chrome-profiles/
+chrome-profiles-manual/
 
 # Project specific
 config.json

@@ -171,6 +171,16 @@ app.on('before-quit', async () => {
   if (automationRunner && automationRunner.isRunning) {
     await automationRunner.stop();
   }
+  
+  // Clean up chrome profiles directory on quit
+  try {
+    const chromeProfilesPath = path.join(app.getPath('userData'), 'chrome-profiles');
+    if (fs.existsSync(chromeProfilesPath)) {
+      fs.rmSync(chromeProfilesPath, { recursive: true, force: true });
+    }
+  } catch (e) {
+    console.log('Could not clean up chrome profiles:', e.message);
+  }
 });
 
 // ============================================
@@ -733,9 +743,21 @@ ipcMain.handle('get-tag-stats', async () => {
  */
 ipcMain.handle('get-tracker-stats', async () => {
   try {
-    const globalTagTracker = require(path.join(__dirname, '../utils/globalTagTracker'));
-    globalTagTracker.loadTagHistory();
-    return { success: true, stats: globalTagTracker.getStats() };
+    const tagTracker = require(path.join(__dirname, '../utils/tagTracker'));
+    // Initialize without fresh start to load existing data
+    tagTracker.initialize(false);
+    const stats = tagTracker.getStats();
+    return { 
+      success: true, 
+      stats: {
+        totalUniqueUsersTagged: stats.totalTagged,
+        pending: stats.pending,
+        sessionId: stats.sessionId,
+        successfulComments: stats.successfulComments || 0,
+        failedComments: stats.failedComments || 0,
+        successRate: stats.successRate || '0%'
+      }
+    };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -748,10 +770,10 @@ ipcMain.handle('export-tracker-data', async () => {
   try {
     const fs = require('fs');
     const path = require('path');
-    const globalTagTracker = require(path.join(__dirname, '../utils/globalTagTracker'));
+    const tagTracker = require(path.join(__dirname, '../utils/tagTracker'));
     
-    globalTagTracker.loadTagHistory();
-    const data = globalTagTracker.export();
+    tagTracker.initialize(false);
+    const stats = tagTracker.getStats();
     
     // Save to logs folder with timestamp
     const logsDir = path.join(__dirname, '../logs');
@@ -761,6 +783,11 @@ ipcMain.handle('export-tracker-data', async () => {
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
     const filePath = path.join(logsDir, `tracker-export-${timestamp}.json`);
+    
+    const data = {
+      stats: stats,
+      exportedAt: new Date().toISOString()
+    };
     
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     
@@ -775,8 +802,8 @@ ipcMain.handle('export-tracker-data', async () => {
  */
 ipcMain.handle('reset-tracker-global', async () => {
   try {
-    const globalTagTracker = require(path.join(__dirname, '../utils/globalTagTracker'));
-    globalTagTracker.reset();
+    const tagTracker = require(path.join(__dirname, '../utils/tagTracker'));
+    tagTracker.reset();
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
