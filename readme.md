@@ -1,6 +1,16 @@
 # 🚀 Instagram Mass Tagging Automation Tool
 
-A powerful Node.js automation using Puppeteer that logs into multiple Instagram accounts and posts comments containing user tags on a specific reel/post. Now available as a **Desktop Application** with a modern GUI! The tool respects Instagram safety limits to avoid action blocks, shadowban, or account bans.
+A powerful Node.js automation using Puppeteer that logs into multiple Instagram accounts and posts comments containing user tags on a specific reel/post. Now available as a **Desktop Application** with a modern GUI! The to## 📜 Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run electron` | 🖥️ Run desktop application (GUI) |
+| `npm start` | 🚀 Run CLI mass tagging automation |
+| `npm run proxy-check` | ✅ Test all proxies before running |
+| `npm run browser` | Install Puppeteer Chrome browser |
+| `npm run build:mac` | 📦 Build macOS app (.dmg) |
+| `npm run build:win` | 📦 Build Windows app (.exe) |
+| `npm run fix` | Run fix script for common issues |ts Instagram safety limits to avoid action blocks, shadowban, or account bans.
 
 ---
 
@@ -293,7 +303,20 @@ Your file should be `data/usernames.xlsx` with these columns:
 
 ## ▶️ Running the Tool
 
-### Start Mass Tagging Automation
+### Option 1: Desktop GUI (Recommended)
+
+```bash
+npm run electron
+```
+
+Launch the modern Electron app with:
+- 📊 Real-time statistics and progress tracking
+- 📜 Live log viewer with color-coded messages
+- ⚙️ Easy account and proxy management
+- 🔄 Start/Stop controls
+- 🔌 Built-in proxy checker
+
+### Option 2: CLI Mass Tagging Automation
 
 ```bash
 npm start
@@ -302,12 +325,12 @@ node main.js
 ```
 
 This runs the full-featured mass tagging automation with:
-- Batch processing (100 accounts per batch)
+- Batch processing (configurable accounts per batch)
 - Safety delays and long pauses
 - Human behavior simulation
 - Comprehensive logging
 
-### Check Proxies
+### Check Proxies Before Running
 
 ```bash
 npm run proxy-check
@@ -318,7 +341,7 @@ node utils/proxyChecker.js
 Verify all your proxies are working before running the main script:
 - Tests each proxy from `proxies` array and individual account proxies
 - Shows ✅ Success or ❌ Failed for each proxy
-- Saves results to date-wise folder: `logs/YYYY-MM-DD/proxy_check_log.csv`
+- Saves results to: `logs/YYYY-MM-DD/proxy_check_log.csv`
 
 ---
 
@@ -330,9 +353,11 @@ If Instagram prompts for checkpoint/challenge:
 node manual-login/manual-login.js
 ```
 
+**Steps:**
 1. Browser opens for each account
 2. Manually complete login/verification
 3. Cookies are saved automatically
+4. Timeout per login session is configurable via `.env` (`ACCOUNT_VERIFICATION_TIME`)
 
 ---
 
@@ -470,6 +495,7 @@ Detailed CSV log of every comment attempt:
 4. **Monitor logs** - Check for blocked/checkpoint accounts
 5. **Rotate proxies** - Don't use same proxy for too many accounts
 6. **Limit daily usage** - Don't exceed 60 tags per account per day
+7. **Test with small batch** - Start with 10-20 accounts before scaling to 500+
 
 ---
 
@@ -490,46 +516,33 @@ Detailed CSV log of every comment attempt:
 - Check if proxy is working
 - Account may be disabled/locked
 
----
-3. If prompted, complete any checkpoint/challenge.
-4. Timeout per login session is configurable via `.env` (`ACCOUNT_VERIFICATION_TIME`).
-5. After login, cookies are auto-saved to `cookies/`.
-6. These cookies will be reused in future runs.
+### Proxy Connection Issues
+- Run `npm run proxy-check` to test proxies
+- Verify proxy credentials are correct
+- Check if proxy supports HTTP/SOCKS5
+- Try with a different proxy provider
 
 ---
 
-## 🌐 Proxy Check (Optional)
-
-To verify if your proxies are working before running the tool:
-
-```bash
-node utils/proxyChecker.js
-```
-
-- This will test each proxy from your `accounts.json`.
-- Console output will indicate valid and failed proxies.
-- Useful before large-scale operations to prevent account bans.
-
----
-
-## 📌 Notes
+## 📌 Important Notes
 
 - Instagram may block automated behavior; use this tool responsibly.
 - Avoid exceeding safe daily comment limits (e.g., ~100-150 comments/day/account).
 - Recommended: 3-5 accounts per proxy.
-- instragram policy changes will not be considered tools fault
+- Instagram policy changes will not be considered the tool's fault.
+- Always test with a small batch before running large-scale operations.
 
 ---
 
 ## 📄 License
 
-This tool is proprietary and built for [Client Name/Yogesh]. Redistribution is prohibited without permission.
+This tool is proprietary and built for authorized users only. Redistribution is prohibited without permission.
 
 ---
 
 ## 🧑‍💻 Author
 
-**Tanishk Dhaka**  
+**Diksha**  
 Developer & Automation Specialist  
 📍 Delhi, India
 
