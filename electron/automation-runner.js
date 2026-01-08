@@ -332,7 +332,7 @@ class AutomationRunner extends EventEmitter {
       
       this.emit('log', { type: 'info', message: `📝 [${account.username}] Planning ${commentsToPost} comments (${tagsPerCommentMin}-${tagsPerCommentMax} tags each)` });
 
-      // Post comments
+      // Post comments - close and restart browser for each comment
       for (let i = 0; i < commentsToPost; i++) {
         if (this.shouldStop) {
           this.emit('log', { type: 'warning', message: `⏹️ [${account.username}] Stopping comment loop...` });
@@ -381,6 +381,109 @@ class AutomationRunner extends EventEmitter {
             comment: tags.map(t => `@${t}`).join(' '),
             tagsCount: tags.length
           });
+          
+          // Close browser after successful comment
+          this.emit('log', { type: 'info', message: `🔄 [${account.username}] Closing browser for fresh restart...` });
+          if (browser) {
+            try {
+              const browserIndex = this.browsers.indexOf(browser);
+              if (browserIndex > -1) {
+                this.browsers.splice(browserIndex, 1);
+              }
+              await browser.close();
+              browser = null;
+              page = null;
+            } catch (e) {
+              this.emit('log', { type: 'warning', message: `⚠️ [${account.username}] Error closing browser: ${e.message}` });
+            }
+          }
+          
+          // Delay before starting fresh browser (simulate user break)
+          if (i < commentsToPost - 1 && !this.shouldStop) {
+            const delayTime = Math.floor(Math.random() * 45000) + 45000; // 45-90 seconds
+            this.emit('log', { type: 'info', message: `⏳ [${account.username}] Waiting ${Math.round(delayTime/1000)}s before fresh browser...` });
+            await this.sleep(delayTime);
+          }
+          
+          // Start fresh browser with new proxy if there are more comments
+          if (i < commentsToPost - 1 && !this.shouldStop) {
+            this.emit('log', { type: 'info', message: `🚀 [${account.username}] Starting fresh browser for comment ${i + 2}...` });
+            const newProxy = this.getProxyForAccount(account, config.proxies || [], accountIndex);
+            const newUserAgent = utils.userAgents.getRandomUserAgent();
+            
+            if (newProxy) {
+              this.emit('log', { type: 'info', message: `🌐 [${account.username}] New proxy: ${newProxy.address}:${newProxy.port}` });
+            }
+            
+            // Re-initialize browser and page
+            const launchOptions = {
+              headless: options.headless !== false ? 'new' : false,
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-infobars',
+                '--start-maximized'
+              ],
+              defaultViewport: null
+            };
+            
+            const { launchArgs, authenticateConfig } = utils.proxySetup.setupProxyArgs(newProxy);
+            launchOptions.args.push(...launchArgs);
+            
+            try {
+              browser = await puppeteer.launch(launchOptions);
+              this.browsers.push(browser);
+              page = await browser.newPage();
+              
+              await utils.humanBehavior.setupHumanBehavior(page);
+              await page.setUserAgent(newUserAgent);
+              
+              if (authenticateConfig) {
+                await utils.proxySetup.applyProxyAuthentication(page, authenticateConfig, account.username);
+              }
+              
+              await page.setExtraHTTPHeaders({
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+              });
+              
+              // Re-login with new browser
+              this.emit('log', { type: 'info', message: `🔐 [${account.username}] Re-logging in...` });
+              const reLoginResult = await this.loginWithLogs(page, account, utils);
+              
+              if (!reLoginResult.success) {
+                this.emit('log', { type: 'error', message: `❌ [${account.username}] Re-login failed: ${reLoginResult.error}` });
+                utils.tagTracker.releaseTags(tags); // Release this batch
+                // Release remaining tags
+                for (let j = i + 1; j < commentsToPost; j++) {
+                  if (commentBatches[j]) {
+                    utils.tagTracker.releaseTags(commentBatches[j]);
+                  }
+                }
+                break;
+              }
+              
+              this.emit('log', { type: 'success', message: `✅ [${account.username}] Re-logged in successfully` });
+              
+              // Navigate to target post again
+              this.emit('log', { type: 'info', message: `📍 [${account.username}] Navigating to target post...` });
+              await page.goto(config.targetPost, { waitUntil: 'networkidle2', timeout: 60000 });
+              
+              this.emit('log', { type: 'success', message: `✅ [${account.username}] Ready for next comment` });
+            } catch (error) {
+              this.emit('log', { type: 'error', message: `❌ [${account.username}] Failed to restart browser: ${error.message}` });
+              utils.tagTracker.releaseTags(tags);
+              // Release remaining tags
+              for (let j = i + 1; j < commentsToPost; j++) {
+                if (commentBatches[j]) {
+                  utils.tagTracker.releaseTags(commentBatches[j]);
+                }
+              }
+              break;
+            }
+          }
         } else {
           // Release tags back to pool if comment failed
           utils.tagTracker.releaseTags(tags);
@@ -398,6 +501,22 @@ class AutomationRunner extends EventEmitter {
             error: result.error
           });
           
+          // Close browser after failed comment for fresh restart
+          this.emit('log', { type: 'info', message: `🔄 [${account.username}] Closing browser after failed comment...` });
+          if (browser) {
+            try {
+              const browserIndex = this.browsers.indexOf(browser);
+              if (browserIndex > -1) {
+                this.browsers.splice(browserIndex, 1);
+              }
+              await browser.close();
+              browser = null;
+              page = null;
+            } catch (e) {
+              this.emit('log', { type: 'warning', message: `⚠️ [${account.username}] Error closing browser: ${e.message}` });
+            }
+          }
+          
           if (result.error.includes('blocked') || result.error.includes("Couldn't post")) {
             this.emit('log', { type: 'warning', message: `🚫 [${account.username}] Action blocked detected, skipping account` });
             // Release remaining tags
@@ -408,20 +527,89 @@ class AutomationRunner extends EventEmitter {
             }
             break;
           }
+          
+          // Delay before trying again with fresh browser
+          if (i < commentsToPost - 1 && !this.shouldStop) {
+            const delayTime = Math.floor(Math.random() * 45000) + 45000; // 45-90 seconds
+            this.emit('log', { type: 'info', message: `⏳ [${account.username}] Waiting ${Math.round(delayTime/1000)}s before retry...` });
+            await this.sleep(delayTime);
+            
+            // Start fresh browser for retry
+            this.emit('log', { type: 'info', message: `🚀 [${account.username}] Starting fresh browser for retry...` });
+            const newProxy = this.getProxyForAccount(account, config.proxies || [], accountIndex);
+            const newUserAgent = utils.userAgents.getRandomUserAgent();
+            
+            if (newProxy) {
+              this.emit('log', { type: 'info', message: `🌐 [${account.username}] New proxy: ${newProxy.address}:${newProxy.port}` });
+            }
+            
+            const launchOptions = {
+              headless: options.headless !== false ? 'new' : false,
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-infobars',
+                '--start-maximized'
+              ],
+              defaultViewport: null
+            };
+            
+            const { launchArgs, authenticateConfig } = utils.proxySetup.setupProxyArgs(newProxy);
+            launchOptions.args.push(...launchArgs);
+            
+            try {
+              browser = await puppeteer.launch(launchOptions);
+              this.browsers.push(browser);
+              page = await browser.newPage();
+              
+              await utils.humanBehavior.setupHumanBehavior(page);
+              await page.setUserAgent(newUserAgent);
+              
+              if (authenticateConfig) {
+                await utils.proxySetup.applyProxyAuthentication(page, authenticateConfig, account.username);
+              }
+              
+              await page.setExtraHTTPHeaders({
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+              });
+              
+              // Re-login
+              this.emit('log', { type: 'info', message: `🔐 [${account.username}] Re-logging in after failed comment...` });
+              const reLoginResult = await this.loginWithLogs(page, account, utils);
+              
+              if (!reLoginResult.success) {
+                this.emit('log', { type: 'error', message: `❌ [${account.username}] Re-login failed: ${reLoginResult.error}` });
+                // Release remaining tags
+                for (let j = i + 1; j < commentsToPost; j++) {
+                  if (commentBatches[j]) {
+                    utils.tagTracker.releaseTags(commentBatches[j]);
+                  }
+                }
+                break;
+              }
+              
+              this.emit('log', { type: 'success', message: `✅ [${account.username}] Re-logged in successfully` });
+              
+              // Navigate to target post
+              this.emit('log', { type: 'info', message: `📍 [${account.username}] Navigating to target post...` });
+              await page.goto(config.targetPost, { waitUntil: 'networkidle2', timeout: 60000 });
+            } catch (error) {
+              this.emit('log', { type: 'error', message: `❌ [${account.username}] Failed to restart browser after failed comment: ${error.message}` });
+              // Release remaining tags
+              for (let j = i + 1; j < commentsToPost; j++) {
+                if (commentBatches[j]) {
+                  utils.tagTracker.releaseTags(commentBatches[j]);
+                }
+              }
+              break;
+            }
+          }
         }
 
         this.emitStats();
-
-        // Delay between comments with human-like scrolling
-        // IMPORTANT: Longer delays reduce chance of being blocked
-        if (i < commentsToPost - 1 && !this.shouldStop) {
-          // Delay: 45-90 seconds between comments
-          const delayTime = Math.floor(Math.random() * 45000) + 45000;
-          this.emit('log', { type: 'info', message: `⏳ [${account.username}] Waiting ${Math.round(delayTime/1000)}s before next comment...` });
-          
-          // Do human-like scrolling while waiting
-          await this.humanScrollWhileWaiting(page, delayTime, utils);
-        }
       }
 
       // Only save cookies if not stopped
