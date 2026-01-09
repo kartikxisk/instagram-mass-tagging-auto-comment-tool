@@ -76,10 +76,10 @@ function initializeDirectories() {
       }
     }
     
-    // Always start with empty accounts and proxies - user must import their own
+    // Always start with empty accounts - user must import their own
+    // Note: Proxies are now per-account, not global
     const defaultConfig = {
       accounts: [],
-      proxies: [],
       targetPost: '',
       settings: defaultSettings
     };

@@ -2,23 +2,333 @@
   "accounts": [
     {
       "username": "are_yoo_aarav",
-      "password": "ninjaturtles"
+      "password": "ninjaturtles",
+      "proxies": [
+        {
+          "address": "82.25.235.174",
+          "port": "7525",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "155.254.39.195",
+          "port": "6153",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "45.38.84.197",
+          "port": "7133",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "104.239.35.116",
+          "port": "5798",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.22.234.76",
+          "port": "7926",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "89.32.200.98",
+          "port": "6554",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "64.137.8.238",
+          "port": "6920",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "212.135.181.93",
+          "port": "6275",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "31.58.30.155",
+          "port": "6737",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "181.214.13.84",
+          "port": "5925",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        }
+      ]
     },
     {
       "username": "are_yoo_anirudh",
-      "password": "ninjaturtles"
+      "password": "ninjaturtles",
+      "proxies": [
+        {
+          "address": "45.61.116.60",
+          "port": "6738",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "50.114.243.171",
+          "port": "6412",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.22.217.147",
+          "port": "5489",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "146.103.5.207",
+          "port": "6787",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "191.101.188.19",
+          "port": "6773",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.26.238.198",
+          "port": "6505",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "185.72.241.246",
+          "port": "7538",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "31.58.18.160",
+          "port": "6429",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.21.244.214",
+          "port": "5537",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "192.186.186.145",
+          "port": "6187",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        }
+      ]
     },
     {
       "username": "are_yoo_atharv",
-      "password": "ninjaturtles"
+      "password": "ninjaturtles",
+      "proxies": [
+        {
+          "address": "172.121.159.73",
+          "port": "5233",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "212.42.203.63",
+          "port": "6111",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.26.242.74",
+          "port": "6893",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "50.114.93.215",
+          "port": "6199",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.29.214.217",
+          "port": "7068",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "23.236.255.9",
+          "port": "6785",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.26.246.66",
+          "port": "7890",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "2.57.30.245",
+          "port": "7321",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "91.198.95.57",
+          "port": "5579",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "23.109.219.74",
+          "port": "6298",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        }
+      ]
     },
     {
       "username": "are_yoo_kavya",
-      "password": "ninjaturtles"
+      "password": "ninjaturtles",
+      "proxies": [
+        {
+          "address": "103.101.88.141",
+          "port": "5865",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "104.239.44.236",
+          "port": "6158",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "107.172.221.173",
+          "port": "6128",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "45.131.92.163",
+          "port": "6774",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.22.215.180",
+          "port": "7511",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "104.239.19.144",
+          "port": "6821",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "161.123.65.87",
+          "port": "6796",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.22.235.49",
+          "port": "6855",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "103.99.33.136",
+          "port": "6131",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "107.173.93.203",
+          "port": "6157",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        }
+      ]
     },
     {
       "username": "are_yoo_kritika",
-      "password": "ninjaturtles"
+      "password": "ninjaturtles",
+      "proxies": [
+        {
+          "address": "82.26.247.212",
+          "port": "6046",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "191.96.130.234",
+          "port": "5997",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "154.6.115.158",
+          "port": "6627",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "185.48.55.67",
+          "port": "6543",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "185.198.37.177",
+          "port": "5864",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "64.137.99.238",
+          "port": "5871",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "173.211.68.205",
+          "port": "6487",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "23.26.231.75",
+          "port": "7316",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "216.173.72.3",
+          "port": "6622",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        },
+        {
+          "address": "82.22.214.44",
+          "port": "5896",
+          "username": "rubjznrn",
+          "password": "ihdzbirrms7a"
+        }
+      ]
     }
   ],
   "proxies": [

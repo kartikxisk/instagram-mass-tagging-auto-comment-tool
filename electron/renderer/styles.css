@@ -1007,6 +1007,24 @@ input::placeholder {
   color: var(--text-muted);
 }
 
+.account-proxy-status {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-left: var(--spacing-sm);
+  padding-left: var(--spacing-sm);
+  border-left: 1px solid var(--bg-tertiary);
+}
+
+.account-proxy-status.has-proxies {
+  color: var(--info);
+}
+
+.account-proxy-status.no-proxies {
+  color: var(--warning);
+}
+
 .account-actions {
   display: flex;
   gap: var(--spacing-xs);
@@ -1026,6 +1044,14 @@ input::placeholder {
 .account-actions button:hover {
   background: var(--accent-primary);
   color: var(--text-primary);
+}
+
+.account-actions button.btn-proxy {
+  background: var(--accent-secondary);
+}
+
+.account-actions button.btn-proxy:hover {
+  background: var(--info);
 }
 
 .account-actions button.btn-login {

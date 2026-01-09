@@ -62,14 +62,6 @@ const elements = {
   btnExportSessions: document.getElementById('btn-export-sessions'),
   btnAddAccount: document.getElementById('btn-add-account'),
   
-  // Proxies
-  proxiesList: document.getElementById('proxies-list'),
-  proxiesCount: document.getElementById('proxies-count'),
-  btnTestAllProxies: document.getElementById('btn-test-all-proxies'),
-  btnImportProxies: document.getElementById('btn-import-proxies'),
-  btnExportProxies: document.getElementById('btn-export-proxies'),
-  btnAddProxy: document.getElementById('btn-add-proxy'),
-  
   // Settings
   settingParallelAccounts: document.getElementById('setting-parallel-accounts'),
   settingBatchSize: document.getElementById('setting-batch-size'),
@@ -84,7 +76,7 @@ const elements = {
   
   // Modals
   modalAddAccount: document.getElementById('modal-add-account'),
-  modalAddProxy: document.getElementById('modal-add-proxy'),
+  modalEditProxies: document.getElementById('modal-edit-proxies'),
   
   // Version
   versionBadge: document.getElementById('version-badge')
@@ -125,12 +117,13 @@ async function loadConfig() {
   
   if (result.success) {
     state.config = result.config;
-    log('success', `Loaded configuration: ${state.config.accounts?.length || 0} accounts, ${state.config.proxies?.length || 0} proxies`);
+    // Count total proxies across all accounts
+    const totalProxies = (state.config.accounts || []).reduce((sum, acc) => sum + (acc.proxies?.length || 0), 0);
+    log('success', `Loaded configuration: ${state.config.accounts?.length || 0} accounts, ${totalProxies} proxies`);
   } else {
     log('error', `Failed to load config: ${result.error}`);
     state.config = {
       accounts: [],
-      proxies: [],
       targetPost: '',
       settings: {
         accountsPerBatch: 100,
@@ -219,12 +212,8 @@ function setupEventListeners() {
   // Manual Login
   document.getElementById('btn-open-login-browser').addEventListener('click', startManualLogin);
   
-  // Proxies
-  elements.btnTestAllProxies.addEventListener('click', checkProxies);
-  elements.btnImportProxies.addEventListener('click', importProxies);
-  elements.btnExportProxies.addEventListener('click', exportProxies);
-  elements.btnAddProxy.addEventListener('click', () => showModal('modal-add-proxy'));
-  document.getElementById('btn-confirm-add-proxy').addEventListener('click', addProxy);
+  // Account Proxies
+  document.getElementById('btn-save-account-proxies').addEventListener('click', saveAccountProxies);
   
   // Settings
   elements.btnSaveSettings.addEventListener('click', saveConfig);
@@ -470,7 +459,27 @@ async function openLogsFolder() {
 // ============================================
 
 async function checkProxies() {
-  log('info', 'Starting proxy check...');
+  // Collect all proxies from all accounts
+  const allProxies = [];
+  const accounts = state.config.accounts || [];
+  
+  accounts.forEach(acc => {
+    if (acc.proxies && acc.proxies.length > 0) {
+      acc.proxies.forEach(proxy => {
+        allProxies.push({
+          ...proxy,
+          accountUsername: acc.username
+        });
+      });
+    }
+  });
+  
+  if (allProxies.length === 0) {
+    log('warning', 'No proxies configured on any account. Add proxies to accounts first.');
+    return;
+  }
+  
+  log('info', `Starting proxy check for ${allProxies.length} proxies across ${accounts.length} accounts...`);
   setStatus('running', 'Checking proxies...');
   
   const result = await window.electronAPI.checkProxies();
@@ -481,8 +490,8 @@ async function checkProxies() {
     log('success', `Proxy check complete: ${working}/${total} proxies working`);
     setStatus('ready', `Proxy check: ${working}/${total} working`);
     
-    // Update proxy list with status
-    updateProxiesList(result.results);
+    // Update account list to show proxy status
+    renderAccountsList();
   } else {
     log('error', `Proxy check failed: ${result.error}`);
     setStatus('error', 'Proxy check failed');
@@ -563,29 +572,6 @@ async function exportAccounts() {
   }
 }
 
-async function importProxies() {
-  const result = await window.electronAPI.importProxies();
-  
-  if (result.success) {
-    state.config.proxies = [...state.config.proxies, ...result.proxies];
-    await saveConfig();
-    renderProxiesList();
-    log('success', `Imported ${result.proxies.length} proxies`);
-  } else if (!result.canceled) {
-    log('error', `Failed to import: ${result.error}`);
-  }
-}
-
-async function exportProxies() {
-  const result = await window.electronAPI.exportProxies(state.config.proxies);
-  
-  if (result.success) {
-    log('success', 'Proxies exported successfully');
-  } else if (!result.canceled) {
-    log('error', `Failed to export: ${result.error}`);
-  }
-}
-
 async function exportSessions() {
   const result = await window.electronAPI.exportSessions();
   
@@ -634,13 +620,22 @@ async function importSessions() {
 function addAccount() {
   const username = document.getElementById('new-account-username').value.trim();
   const password = document.getElementById('new-account-password').value;
+  const proxiesText = document.getElementById('new-account-proxies').value.trim();
   
   if (!username || !password) {
     log('error', 'Please enter both username and password');
     return;
   }
   
-  state.config.accounts.push({ username, password });
+  // Parse proxies from text
+  const proxies = parseProxiesText(proxiesText);
+  
+  const account = { username, password };
+  if (proxies.length > 0) {
+    account.proxies = proxies;
+  }
+  
+  state.config.accounts.push(account);
   saveConfig();
   renderAccountsList();
   closeAllModals();
@@ -648,8 +643,96 @@ function addAccount() {
   // Clear form
   document.getElementById('new-account-username').value = '';
   document.getElementById('new-account-password').value = '';
+  document.getElementById('new-account-proxies').value = '';
   
-  log('success', `Account "${username}" added`);
+  const proxyMsg = proxies.length > 0 ? ` with ${proxies.length} proxies` : '';
+  log('success', `Account "${username}" added${proxyMsg}`);
+}
+
+/**
+ * Parse proxy text into array of proxy objects
+ * Format: address:port:username:password or address:port
+ */
+function parseProxiesText(text) {
+  if (!text) return [];
+  
+  const proxies = [];
+  const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+  
+  for (const line of lines) {
+    const parts = line.split(':');
+    if (parts.length >= 2) {
+      const proxy = {
+        address: parts[0],
+        port: parts[1]
+      };
+      if (parts.length >= 4) {
+        proxy.username = parts[2];
+        proxy.password = parts[3];
+      }
+      proxies.push(proxy);
+    }
+  }
+  
+  return proxies;
+}
+
+/**
+ * Convert proxies array to text format
+ */
+function proxiesToText(proxies) {
+  if (!proxies || !Array.isArray(proxies)) return '';
+  
+  return proxies.map(proxy => {
+    if (proxy.username && proxy.password) {
+      return `${proxy.address}:${proxy.port}:${proxy.username}:${proxy.password}`;
+    }
+    return `${proxy.address}:${proxy.port}`;
+  }).join('\n');
+}
+
+// Current account being edited for proxies
+let currentEditProxiesAccount = null;
+
+/**
+ * Open the edit proxies modal for an account
+ */
+function openEditProxies(username) {
+  const account = state.config.accounts.find(acc => acc.username === username);
+  if (!account) {
+    log('error', `Account ${username} not found`);
+    return;
+  }
+  
+  currentEditProxiesAccount = username;
+  document.getElementById('edit-proxies-account').textContent = username;
+  document.getElementById('edit-account-proxies').value = proxiesToText(account.proxies);
+  showModal('modal-edit-proxies');
+}
+
+/**
+ * Save account proxies from the edit modal
+ */
+function saveAccountProxies() {
+  if (!currentEditProxiesAccount) return;
+  
+  const accountIndex = state.config.accounts.findIndex(acc => acc.username === currentEditProxiesAccount);
+  if (accountIndex === -1) {
+    log('error', `Account ${currentEditProxiesAccount} not found`);
+    closeAllModals();
+    return;
+  }
+  
+  const proxiesText = document.getElementById('edit-account-proxies').value.trim();
+  const proxies = parseProxiesText(proxiesText);
+  
+  state.config.accounts[accountIndex].proxies = proxies;
+  saveConfig();
+  renderAccountsList();
+  closeAllModals();
+  
+  log('success', `Saved ${proxies.length} proxies for ${currentEditProxiesAccount}`);
+  currentEditProxiesAccount = null;
 }
 
 function removeAccount(index) {
@@ -702,14 +785,19 @@ async function renderAccountsList() {
     const sessionClass = hasSession ? 'has-session' : 'no-session';
     const sessionIcon = hasSession ? '✅' : '⚠️';
     const sessionText = hasSession ? 'Session saved' : 'No session';
+    const proxyCount = acc.proxies?.length || 0;
+    const proxyText = proxyCount > 0 ? `🌐 ${proxyCount} proxies` : '⚠️ No proxies';
+    const proxyClass = proxyCount > 0 ? 'has-proxies' : 'no-proxies';
     
     return `
       <div class="account-item">
         <div class="account-info">
           <span class="account-username">${escapeHtml(acc.username)}</span>
-          <span class="account-status ${sessionClass}">${sessionIcon} ${sessionText} ${acc.proxy ? '| 🔒 Has proxy' : ''}</span>
+          <span class="account-status ${sessionClass}">${sessionIcon} ${sessionText}</span>
+          <span class="account-proxy-status ${proxyClass}">${proxyText}</span>
         </div>
         <div class="account-actions">
+          <button class="btn btn-proxy" data-edit-proxies="${escapeHtml(acc.username)}" title="Edit Proxies">🌐 Proxies</button>
           <button class="btn btn-login" data-login-username="${escapeHtml(acc.username)}" title="Manual Login">🔐 Login</button>
           ${hasSession ? `<button class="btn btn-clear-session" data-clear-session="${escapeHtml(acc.username)}" title="Delete Session">🗑️ Session</button>` : ''}
           <button class="btn btn-delete" data-remove-account="${i}" title="Remove Account">❌</button>
@@ -719,6 +807,10 @@ async function renderAccountsList() {
   }).join('');
   
   // Add event listeners for account actions
+  elements.accountsList.querySelectorAll('[data-edit-proxies]').forEach(btn => {
+    btn.addEventListener('click', () => openEditProxies(btn.dataset.editProxies));
+  });
+  
   elements.accountsList.querySelectorAll('[data-login-username]').forEach(btn => {
     btn.addEventListener('click', () => openManualLogin(btn.dataset.loginUsername));
   });
@@ -821,96 +913,6 @@ async function startManualLogin() {
 }
 
 // ============================================
-// Proxy Management
-// ============================================
-
-function addProxy() {
-  const protocol = document.getElementById('new-proxy-protocol').value;
-  const address = document.getElementById('new-proxy-address').value.trim();
-  const port = parseInt(document.getElementById('new-proxy-port').value);
-  const username = document.getElementById('new-proxy-username').value.trim();
-  const password = document.getElementById('new-proxy-password').value;
-  
-  if (!address || !port) {
-    log('error', 'Please enter proxy address and port');
-    return;
-  }
-  
-  const proxy = { protocol, address, port };
-  if (username) proxy.username = username;
-  if (password) proxy.password = password;
-  
-  state.config.proxies.push(proxy);
-  saveConfig();
-  renderProxiesList();
-  closeAllModals();
-  
-  // Clear form
-  document.getElementById('new-proxy-address').value = '';
-  document.getElementById('new-proxy-port').value = '';
-  document.getElementById('new-proxy-username').value = '';
-  document.getElementById('new-proxy-password').value = '';
-  
-  log('success', `Proxy "${address}:${port}" added`);
-}
-
-function removeProxy(index) {
-  const proxy = state.config.proxies[index];
-  
-  // Show confirmation alert
-  if (!confirm(`Are you sure you want to remove proxy "${proxy.address}:${proxy.port}"?\n\nThis action cannot be undone.`)) {
-    return;
-  }
-  
-  state.config.proxies.splice(index, 1);
-  saveConfig();
-  renderProxiesList();
-  log('success', `Proxy "${proxy.address}:${proxy.port}" removed`);
-}
-
-function renderProxiesList(results = null) {
-  const proxies = state.config.proxies || [];
-  elements.proxiesCount.textContent = proxies.length;
-  
-  if (proxies.length === 0) {
-    elements.proxiesList.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">🌐</div>
-        <div class="empty-state-text">No proxies configured.<br>Click "Add" to add a proxy.</div>
-      </div>
-    `;
-    return;
-  }
-  
-  elements.proxiesList.innerHTML = proxies.map((proxy, i) => {
-    const status = results ? results.find(r => r.proxy === `${proxy.address}:${proxy.port}`) : null;
-    const statusClass = status ? (status.success ? 'success' : 'failed') : '';
-    const statusText = status ? (status.success ? '✅ Working' : '❌ Failed') : '⏳ Not tested';
-    
-    return `
-      <div class="proxy-item">
-        <div class="proxy-info">
-          <span class="proxy-address">${proxy.address}:${proxy.port}</span>
-          <span class="proxy-status ${statusClass}">${statusText}</span>
-        </div>
-        <div class="proxy-actions">
-          <button class="btn btn-secondary btn-icon-only" data-remove-proxy="${i}" title="Remove">🗑️</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-  
-  // Add event listeners for proxy actions
-  elements.proxiesList.querySelectorAll('[data-remove-proxy]').forEach(btn => {
-    btn.addEventListener('click', () => removeProxy(parseInt(btn.dataset.removeProxy)));
-  });
-}
-
-function updateProxiesList(results) {
-  renderProxiesList(results);
-}
-
-// ============================================
 // Settings
 // ============================================
 
@@ -1006,7 +1008,6 @@ function updateUI() {
   
   // Update lists
   renderAccountsList();
-  renderProxiesList();
   
   // Update stats display
   elements.statAccounts.textContent = state.config.accounts?.length || 0;

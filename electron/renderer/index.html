@@ -120,7 +120,6 @@
         <div class="tab-nav">
           <button class="tab-btn active" data-tab="logs">📜 Logs</button>
           <button class="tab-btn" data-tab="accounts">👥 Accounts</button>
-          <button class="tab-btn" data-tab="proxies">🌐 Proxies</button>
           <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
         </div>
 
@@ -157,22 +156,6 @@
             </div>
             <div class="accounts-list" id="accounts-list">
               <!-- Accounts will be populated here -->
-            </div>
-          </div>
-
-          <!-- Proxies Tab -->
-          <div class="tab-pane" id="tab-proxies">
-            <div class="proxies-header">
-              <span class="proxies-count">Proxies: <strong id="proxies-count">0</strong></span>
-              <div class="proxies-actions">
-                <button id="btn-test-all-proxies" class="btn btn-small">🧪 Test All</button>
-                <button id="btn-import-proxies" class="btn btn-small">📥 Import</button>
-                <button id="btn-export-proxies" class="btn btn-small">📤 Export</button>
-                <button id="btn-add-proxy" class="btn btn-small btn-primary">+ Add</button>
-              </div>
-            </div>
-            <div class="proxies-list" id="proxies-list">
-              <!-- Proxies will be populated here -->
             </div>
           </div>
 
@@ -255,6 +238,11 @@
           <label for="new-account-password">Password</label>
           <input type="password" id="new-account-password" placeholder="password">
         </div>
+        <div class="input-group">
+          <label>Account Proxies (Optional)</label>
+          <small class="input-hint">Add proxies specific to this account. One per line: address:port:username:password or address:port</small>
+          <textarea id="new-account-proxies" placeholder="192.168.1.1:8080:user:pass&#10;192.168.1.2:8080" rows="4" class="input-field"></textarea>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-close-modal>Cancel</button>
@@ -263,41 +251,26 @@
     </div>
   </div>
 
-  <!-- Add Proxy Modal -->
-  <div class="modal" id="modal-add-proxy">
+  <!-- Edit Account Proxies Modal -->
+  <div class="modal" id="modal-edit-proxies">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Add Proxy</h2>
+        <h2>Edit Account Proxies</h2>
         <button class="modal-close" data-close-modal>&times;</button>
       </div>
       <div class="modal-body">
         <div class="input-group">
-          <label for="new-proxy-protocol">Protocol</label>
-          <select id="new-proxy-protocol">
-            <option value="http">HTTP</option>
-            <option value="socks5">SOCKS5</option>
-          </select>
+          <label>Account: <strong id="edit-proxies-account"></strong></label>
         </div>
         <div class="input-group">
-          <label for="new-proxy-address">Address</label>
-          <input type="text" id="new-proxy-address" placeholder="192.168.1.1">
-        </div>
-        <div class="input-group">
-          <label for="new-proxy-port">Port</label>
-          <input type="number" id="new-proxy-port" placeholder="8080">
-        </div>
-        <div class="input-group">
-          <label for="new-proxy-username">Username (Optional)</label>
-          <input type="text" id="new-proxy-username" placeholder="proxy_user">
-        </div>
-        <div class="input-group">
-          <label for="new-proxy-password">Password (Optional)</label>
-          <input type="password" id="new-proxy-password" placeholder="proxy_pass">
+          <label>Proxies (One per line)</label>
+          <small class="input-hint">Format: address:port:username:password or address:port</small>
+          <textarea id="edit-account-proxies" placeholder="192.168.1.1:8080:user:pass&#10;192.168.1.2:8080" rows="6" class="input-field"></textarea>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-close-modal>Cancel</button>
-        <button class="btn btn-primary" id="btn-confirm-add-proxy">Add Proxy</button>
+        <button class="btn btn-primary" id="btn-save-account-proxies">Save Proxies</button>
       </div>
     </div>
   </div>

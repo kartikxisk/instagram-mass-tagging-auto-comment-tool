@@ -58,24 +58,22 @@ async function checkAllProxies(onProgress) {
 
   const allProxies = [];
 
-  // Global proxies
-  if (config.proxies && Array.isArray(config.proxies)) {
-    allProxies.push(...config.proxies);
-  }
-
-  // Account-specific proxies
+  // Account-specific proxies only (no global proxies)
   if (config.accounts && Array.isArray(config.accounts)) {
     for (const account of config.accounts) {
-      if (account.proxy) {
-        allProxies.push(account.proxy);
-      }
       if (account.proxies && Array.isArray(account.proxies)) {
-        allProxies.push(...account.proxies);
+        // Tag proxies with account info for reporting
+        account.proxies.forEach(proxy => {
+          allProxies.push({
+            ...proxy,
+            accountUsername: account.username
+          });
+        });
       }
     }
   }
 
-  // Remove duplicates
+  // Remove duplicates (same proxy might be used by multiple accounts)
   const uniqueProxies = [];
   const seen = new Set();
   for (const proxy of allProxies) {

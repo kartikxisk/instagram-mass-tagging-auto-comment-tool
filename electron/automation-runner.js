@@ -347,7 +347,7 @@ class AutomationRunner extends EventEmitter {
    * Process a single account (runs in parallel with other accounts)
    */
   async processAccount(account, allTags, config, accountIndex, options, utils) {
-    const proxy = this.getProxyForAccount(account, config.proxies || [], accountIndex);
+    const proxy = this.getProxyForAccount(account);
     const userAgent = utils.userAgents.getRandomUserAgent();
     
     this.emit('log', { type: 'info', message: `👤 Starting...`, username: account.username });
@@ -355,7 +355,7 @@ class AutomationRunner extends EventEmitter {
     if (proxy) {
       this.emit('log', { type: 'info', message: `🌐 Using proxy: ${proxy.address}:${proxy.port}`, username: account.username });
     } else {
-      this.emit('log', { type: 'warning', message: `⚠️ No proxy assigned`, username: account.username });
+      this.emit('log', { type: 'warning', message: `⚠️ No proxy configured for this account`, username: account.username });
     }
 
     // Find system Chrome for more stealth
@@ -584,11 +584,13 @@ class AutomationRunner extends EventEmitter {
           // Start fresh browser with new proxy if there are more comments
           if (i < commentsToPost - 1 && !this.shouldStop) {
             this.emit('log', { type: 'info', message: `🚀 Starting fresh browser for comment ${i + 2}...`, username: account.username });
-            const newProxy = this.getProxyForAccount(account, config.proxies || [], accountIndex);
+            const newProxy = this.getProxyForAccount(account);
             const newUserAgent = utils.userAgents.getRandomUserAgent();
             
             if (newProxy) {
               this.emit('log', { type: 'info', message: `🌐 New proxy: ${newProxy.address}:${newProxy.port}`, username: account.username });
+            } else {
+              this.emit('log', { type: 'warning', message: `⚠️ No proxy available for this account`, username: account.username });
             }
             this.emit('log', { type: 'info', message: `🔄 New User Agent applied`, username: account.username });
             
@@ -748,11 +750,13 @@ class AutomationRunner extends EventEmitter {
             
             // Start fresh browser for retry
             this.emit('log', { type: 'info', message: `🚀 Starting fresh browser for retry...`, username: account.username });
-            const newProxy = this.getProxyForAccount(account, config.proxies || [], accountIndex);
+            const newProxy = this.getProxyForAccount(account);
             const newUserAgent = utils.userAgents.getRandomUserAgent();
             
             if (newProxy) {
               this.emit('log', { type: 'info', message: `🌐 New proxy: ${newProxy.address}:${newProxy.port}`, username: account.username });
+            } else {
+              this.emit('log', { type: 'warning', message: `⚠️ No proxy available for this account`, username: account.username });
             }
             this.emit('log', { type: 'info', message: `🔄 New User Agent applied`, username: account.username });
             
@@ -1233,30 +1237,17 @@ class AutomationRunner extends EventEmitter {
    * Get proxy for account
    */
   /**
-   * Get a random proxy from the list (more unpredictable, harder to detect)
+   * Get a random proxy from the account's own proxy list
+   * Each account has its own proxies that are not shared with other accounts
    */
-  getRandomProxy(globalProxies) {
-    if (!globalProxies || globalProxies.length === 0) {
-      return null;
-    }
-    const randomIndex = Math.floor(Math.random() * globalProxies.length);
-    return globalProxies[randomIndex];
-  }
-
-  /**
-   * Get proxy for an account - uses random selection for better anonymity
-   */
-  getProxyForAccount(account, globalProxies, accountIndex) {
-    // Account-specific proxies take priority
+  getProxyForAccount(account) {
+    // Only use account-specific proxies - no global fallback
     if (account.proxies && account.proxies.length > 0) {
       const randomIndex = Math.floor(Math.random() * account.proxies.length);
       return account.proxies[randomIndex];
     }
-    if (account.proxy?.address) {
-      return account.proxy;
-    }
-    // Use random proxy from global list
-    return this.getRandomProxy(globalProxies);
+    // No proxies configured for this account
+    return null;
   }
 
   /**
