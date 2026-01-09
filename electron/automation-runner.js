@@ -1271,12 +1271,10 @@ class AutomationRunner extends EventEmitter {
     if (fs.existsSync(cookiePath)) {
       try {
         const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
-        const now = Date.now() / 1000;
-        const validCookies = cookies.filter(c => !c.expires || c.expires > now);
         
-        if (validCookies.length > 0) {
-          this.emit('log', { type: 'info', message: `🍪 Loading ${validCookies.length} cookies`, username: account.username });
-          await page.setCookie(...validCookies);
+        if (cookies && Array.isArray(cookies) && cookies.length > 0) {
+          this.emit('log', { type: 'info', message: `🍪 Loading ${cookies.length} cookies`, username: account.username });
+          await page.setCookie(...cookies);
           
           // Go to Instagram and check if logged in
           await page.goto('https://www.instagram.com/', { waitUntil: 'networkidle2', timeout: 60000 });
