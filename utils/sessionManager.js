@@ -2,6 +2,9 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+// Import the centralized login helper
+const loginHelper = require('./loginHelper');
+
 /**
  * Get the cookies directory path
  * Uses Electron's userData path when packaged, otherwise project root
@@ -102,169 +105,22 @@ function deleteCookies(username) {
 
 /**
  * Login to Instagram with retry logic
+ * Uses the centralized loginHelper to handle both OLD and NEW login forms
  * @param {Object} page - Puppeteer page
  * @param {Object} account - Account object with username and password
  * @param {number} maxRetries - Maximum retry attempts
  * @returns {Object} - { success, checkpoint, blocked, error }
  */
 async function login(page, account, maxRetries = 3) {
-  const loginUrl = process.env.INSTAGRAM_LOGIN_URL || 'https://www.instagram.com/accounts/login/';
+  // Use the centralized login helper
+  const result = await loginHelper.performLogin(page, account, { maxRetries, verbose: true });
   
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`🔐 Login attempt ${attempt}/${maxRetries} for ${account.username}`);
-      
-      await page.goto(loginUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-      
-      // Handle cookie consent popup if present
-      try {
-        const acceptCookiesBtn = await page.$('button[class*="aOOlW"]');
-        if (acceptCookiesBtn) {
-          await acceptCookiesBtn.click();
-          await new Promise(r => setTimeout(r, 1000));
-        }
-      } catch (e) {
-        // Cookie popup might not appear, continue
-      }
-
-      // Wait for either old or new login form
-      // Old form: input[name="username"], input[name="password"]
-      // New Meta form: input[name="email"], input[name="pass"]
-      let usernameSelector = null;
-      let passwordSelector = null;
-      
-      try {
-        await page.waitForSelector('input[name="username"]', { visible: true, timeout: 5000 });
-        usernameSelector = 'input[name="username"]';
-        passwordSelector = 'input[name="password"]';
-        console.log(`📝 [${account.username}] Detected OLD Instagram login form`);
-      } catch (e) {
-        try {
-          await page.waitForSelector('input[name="email"]', { visible: true, timeout: 10000 });
-          usernameSelector = 'input[name="email"]';
-          passwordSelector = 'input[name="pass"]';
-          console.log(`📝 [${account.username}] Detected NEW Meta login form`);
-        } catch (e2) {
-          throw new Error('Could not find login form');
-        }
-      }
-      
-      // Clear any existing input and type username with random delays
-      const usernameInput = await page.$(usernameSelector);
-      await usernameInput.click({ clickCount: 3 });
-      await page.keyboard.press('Backspace');
-      
-      // Type with random delays to mimic human behavior
-      for (const char of account.username) {
-        await page.keyboard.type(char, { delay: Math.random() * 100 + 50 });
-      }
-      
-      // Type password
-      await page.click(passwordSelector);
-      for (const char of account.password) {
-        await page.keyboard.type(char, { delay: Math.random() * 100 + 50 });
-      }
-      
-      // Click login button - handle both old and new forms
-      const loginClicked = await page.evaluate(() => {
-        // Try old submit button first
-        const submitBtn = document.querySelector('button[type="submit"]');
-        if (submitBtn) {
-          submitBtn.click();
-          return true;
-        }
-        
-        // Try new Meta login button
-        const buttons = document.querySelectorAll('div[role="button"]');
-        for (const btn of buttons) {
-          if (btn.innerText.trim() === 'Log in') {
-            btn.click();
-            return true;
-          }
-        }
-        
-        return false;
-      });
-      
-      if (!loginClicked) {
-        // Fallback: press Enter
-        await page.keyboard.press('Enter');
-      }
-      
-      // Wait for navigation or error
-      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
-      
-      // Check for checkpoint/verification
-      const currentUrl = page.url();
-      if (currentUrl.includes('challenge') || currentUrl.includes('checkpoint')) {
-        console.log(`⚠️ Checkpoint detected for ${account.username}`);
-        return { success: false, checkpoint: true, blocked: false, error: 'Checkpoint required' };
-      }
-      
-      // Check for action blocked
-      const blockedText = await page.evaluate(() => {
-        const body = document.body.innerText.toLowerCase();
-        return body.includes('action blocked') || body.includes('try again later') || 
-               body.includes('suspicious activity') || body.includes('we restrict certain');
-      });
-      
-      if (blockedText) {
-        console.log(`🚫 Account ${account.username} is blocked`);
-        return { success: false, checkpoint: false, blocked: true, error: 'Action blocked' };
-      }
-      
-      // Check for wrong credentials
-      const wrongCredentials = await page.$('p[data-testid="login-error-message"]');
-      if (wrongCredentials) {
-        const errorText = await wrongCredentials.evaluate(el => el.textContent);
-        console.log(`❌ Login failed for ${account.username}: ${errorText}`);
-        return { success: false, checkpoint: false, blocked: false, error: errorText };
-      }
-      
-      // Verify successful login by checking for home elements
-      const isLoggedIn = await page.evaluate(() => {
-        return document.querySelector('svg[aria-label="Home"]') !== null ||
-               document.querySelector('a[href="/"]') !== null ||
-               window.location.pathname === '/';
-      });
-      
-      if (isLoggedIn || !currentUrl.includes('login')) {
-        console.log(`✅ Successfully logged in as ${account.username}`);
-        await saveCookies(page, account.username);
-        return { success: true, checkpoint: false, blocked: false, error: null };
-      }
-      
-      // Handle "Save Login Info" popup
-      try {
-        const notNowBtn = await page.$('button:has-text("Not Now")');
-        if (notNowBtn) await notNowBtn.click();
-      } catch (e) {
-        // Popup might not appear
-      }
-      
-      // Handle notifications popup
-      try {
-        const notNowNotif = await page.$x('//button[contains(text(), "Not Now")]');
-        if (notNowNotif.length > 0) await notNowNotif[0].click();
-      } catch (e) {
-        // Popup might not appear
-      }
-      
-      return { success: true, checkpoint: false, blocked: false, error: null };
-      
-    } catch (error) {
-      console.error(`❌ Login error for ${account.username} (attempt ${attempt}): ${error.message}`);
-      
-      if (attempt === maxRetries) {
-        return { success: false, checkpoint: false, blocked: false, error: error.message };
-      }
-      
-      // Wait before retry
-      await new Promise(r => setTimeout(r, 5000));
-    }
+  // Save cookies on successful login
+  if (result.success) {
+    await saveCookies(page, account.username);
   }
   
-  return { success: false, checkpoint: false, blocked: false, error: 'Max retries exceeded' };
+  return result;
 }
 
 /**

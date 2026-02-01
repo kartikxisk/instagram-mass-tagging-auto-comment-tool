@@ -4,7 +4,7 @@
     "accountsPerBatch": 100,
     "tagsPerComment": {
       "min": 7,
-      "max": 9
+      "max": 10
     },
     "commentsPerAccount": {
       "min": 5,

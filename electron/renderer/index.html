@@ -120,6 +120,7 @@
         <div class="tab-nav">
           <button class="tab-btn active" data-tab="logs">📜 Logs</button>
           <button class="tab-btn" data-tab="accounts">👥 Accounts</button>
+          <button class="tab-btn" data-tab="proxies">🌐 Proxies</button>
           <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
         </div>
 
@@ -156,6 +157,27 @@
             </div>
             <div class="accounts-list" id="accounts-list">
               <!-- Accounts will be populated here -->
+            </div>
+          </div>
+
+          <!-- Proxies Tab -->
+          <div class="tab-pane" id="tab-proxies">
+            <div class="proxies-header">
+              <span class="proxies-count">
+                Active: <strong id="proxies-active-count">0</strong> | 
+                Flagged: <strong id="proxies-flagged-count" class="text-warning">0</strong>
+              </span>
+              <div class="proxies-actions">
+                <button id="btn-refresh-proxies" class="btn btn-small">🔄 Refresh</button>
+                <button id="btn-clear-flagged" class="btn btn-small btn-danger">🗑️ Clear Flagged</button>
+              </div>
+            </div>
+            <div class="proxies-info-box">
+              <p>ℹ️ Proxies are automatically flagged when suspicious activity is detected (rate limits, checkpoints, blocks).</p>
+              <p>Flagged proxies are skipped - the bot automatically switches to the next available proxy for the account.</p>
+            </div>
+            <div class="proxies-list" id="proxies-list">
+              <!-- Proxies will be populated here -->
             </div>
           </div>
 

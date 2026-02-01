@@ -74,6 +74,13 @@ const elements = {
   btnSaveSettings: document.getElementById('btn-save-settings'),
   btnResetSettings: document.getElementById('btn-reset-settings'),
   
+  // Proxies
+  proxiesList: document.getElementById('proxies-list'),
+  proxiesActiveCount: document.getElementById('proxies-active-count'),
+  proxiesFlaggedCount: document.getElementById('proxies-flagged-count'),
+  btnRefreshProxies: document.getElementById('btn-refresh-proxies'),
+  btnClearFlagged: document.getElementById('btn-clear-flagged'),
+  
   // Modals
   modalAddAccount: document.getElementById('modal-add-account'),
   modalEditProxies: document.getElementById('modal-edit-proxies'),
@@ -214,6 +221,14 @@ function setupEventListeners() {
   
   // Account Proxies
   document.getElementById('btn-save-account-proxies').addEventListener('click', saveAccountProxies);
+  
+  // Proxy Tab
+  if (elements.btnRefreshProxies) {
+    elements.btnRefreshProxies.addEventListener('click', refreshProxyStatus);
+  }
+  if (elements.btnClearFlagged) {
+    elements.btnClearFlagged.addEventListener('click', clearFlaggedProxies);
+  }
   
   // Settings
   elements.btnSaveSettings.addEventListener('click', saveConfig);
@@ -460,26 +475,22 @@ async function openLogsFolder() {
 
 async function checkProxies() {
   // Collect all proxies from all accounts
-  const allProxies = [];
   const accounts = state.config.accounts || [];
   
+  // Count total proxies (handles both string and object formats)
+  let totalProxies = 0;
   accounts.forEach(acc => {
     if (acc.proxies && acc.proxies.length > 0) {
-      acc.proxies.forEach(proxy => {
-        allProxies.push({
-          ...proxy,
-          accountUsername: acc.username
-        });
-      });
+      totalProxies += acc.proxies.length;
     }
   });
   
-  if (allProxies.length === 0) {
+  if (totalProxies === 0) {
     log('warning', 'No proxies configured on any account. Add proxies to accounts first.');
     return;
   }
   
-  log('info', `Starting proxy check for ${allProxies.length} proxies across ${accounts.length} accounts...`);
+  log('info', `Starting proxy check for ${totalProxies} proxies across ${accounts.length} accounts...`);
   setStatus('running', 'Checking proxies...');
   
   const result = await window.electronAPI.checkProxies();
@@ -656,34 +667,29 @@ function addAccount() {
 function parseProxiesText(text) {
   if (!text) return [];
   
-  const proxies = [];
+  // Keep proxies as strings for consistency with accounts.json format
   const lines = text.split('\n').map(line => line.trim()).filter(line => line);
   
-  for (const line of lines) {
+  // Validate each line has at least host:port format
+  return lines.filter(line => {
     const parts = line.split(':');
-    if (parts.length >= 2) {
-      const proxy = {
-        address: parts[0],
-        port: parts[1]
-      };
-      if (parts.length >= 4) {
-        proxy.username = parts[2];
-        proxy.password = parts[3];
-      }
-      proxies.push(proxy);
-    }
-  }
-  
-  return proxies;
+    return parts.length >= 2 && parts[0] && parts[1];
+  });
 }
 
 /**
  * Convert proxies array to text format
+ * Handles both string format ("host:port:user:pass") and object format ({address, port, username, password})
  */
 function proxiesToText(proxies) {
   if (!proxies || !Array.isArray(proxies)) return '';
   
   return proxies.map(proxy => {
+    // If proxy is already a string, return it as-is
+    if (typeof proxy === 'string') {
+      return proxy;
+    }
+    // If proxy is an object, convert to string format
     if (proxy.username && proxy.password) {
       return `${proxy.address}:${proxy.port}:${proxy.username}:${proxy.password}`;
     }
@@ -1016,6 +1022,133 @@ function updateUI() {
   if (state.excelFilePath) {
     loadExcelTagsCount(state.excelFilePath);
   }
+}
+
+// ============================================
+// Proxy Management
+// ============================================
+
+async function refreshProxyStatus() {
+  try {
+    log('info', 'Refreshing proxy status...');
+    const result = await window.electronAPI.getProxyStatus();
+    
+    if (result.success) {
+      renderProxyList(result.status);
+      log('success', `Proxy status refreshed: ${result.status.totalFlagged} flagged proxies`);
+    } else {
+      log('error', `Failed to get proxy status: ${result.error}`);
+    }
+  } catch (error) {
+    log('error', `Failed to refresh proxy status: ${error.message}`);
+  }
+}
+
+async function clearFlaggedProxies() {
+  if (!confirm('Clear all flagged proxies?\n\nAll proxies will be marked as good again and available for use.')) {
+    return;
+  }
+  
+  try {
+    const result = await window.electronAPI.clearFlaggedProxies();
+    
+    if (result.success) {
+      log('success', 'All flagged proxies cleared');
+      refreshProxyStatus();
+    } else {
+      log('error', `Failed to clear flagged proxies: ${result.error}`);
+    }
+  } catch (error) {
+    log('error', `Failed to clear flagged proxies: ${error.message}`);
+  }
+}
+
+async function unflagProxy(proxyId) {
+  try {
+    const result = await window.electronAPI.unflagProxy(proxyId);
+    
+    if (result.success) {
+      log('success', `Proxy ${proxyId} unflagged`);
+      refreshProxyStatus();
+    } else {
+      log('error', `Failed to unflag proxy: ${result.error}`);
+    }
+  } catch (error) {
+    log('error', `Failed to unflag proxy: ${error.message}`);
+  }
+}
+
+function renderProxyList(status) {
+  if (!elements.proxiesList) return;
+  
+  // Update counts
+  let totalActive = 0;
+  let totalFlagged = 0;
+  
+  status.accounts.forEach(acc => {
+    totalActive += acc.availableCount;
+    totalFlagged += acc.flaggedCount;
+  });
+  
+  if (elements.proxiesActiveCount) {
+    elements.proxiesActiveCount.textContent = totalActive;
+  }
+  if (elements.proxiesFlaggedCount) {
+    elements.proxiesFlaggedCount.textContent = totalFlagged;
+  }
+  
+  if (!status.accounts || status.accounts.length === 0) {
+    elements.proxiesList.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🌐</div>
+        <div class="empty-state-text">No accounts with proxies configured.</div>
+      </div>
+    `;
+    return;
+  }
+  
+  elements.proxiesList.innerHTML = status.accounts.map(account => {
+    const proxiesHtml = account.proxies.map(p => {
+      const statusClass = p.isFlagged ? 'proxy-flagged' : (p.isActive ? 'proxy-active' : 'proxy-available');
+      const statusIcon = p.isFlagged ? '⚠️' : (p.isActive ? '✅' : '⚪');
+      const statusText = p.isFlagged ? 'Flagged' : (p.isActive ? 'Active' : 'Available');
+      
+      let reasonsHtml = '';
+      if (p.isFlagged && p.reasons.length > 0) {
+        const lastReason = p.reasons[p.reasons.length - 1];
+        reasonsHtml = `<span class="proxy-reason">Last: ${escapeHtml(lastReason.reason)}</span>`;
+      }
+      
+      return `
+        <div class="proxy-item ${statusClass}">
+          <span class="proxy-address">${escapeHtml(p.proxy)}</span>
+          <span class="proxy-status-badge">${statusIcon} ${statusText}</span>
+          ${reasonsHtml}
+          ${p.isFlagged ? `<button class="btn btn-tiny btn-unflag" data-unflag-proxy="${escapeHtml(p.proxy)}">↩️ Unflag</button>` : ''}
+        </div>
+      `;
+    }).join('');
+    
+    return `
+      <div class="proxy-account-group">
+        <div class="proxy-account-header">
+          <span class="proxy-account-name">👤 ${escapeHtml(account.username)}</span>
+          <span class="proxy-account-stats">
+            ${account.availableCount} active / ${account.totalProxies} total
+            ${account.flaggedCount > 0 ? `<span class="text-warning">(${account.flaggedCount} flagged)</span>` : ''}
+          </span>
+        </div>
+        <div class="proxy-account-list">
+          ${proxiesHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  // Add event listeners for unflag buttons
+  elements.proxiesList.querySelectorAll('[data-unflag-proxy]').forEach(btn => {
+    btn.addEventListener('click', () => unflagProxy(btn.dataset.unflagProxy));
+  });
 }
 
 // ============================================

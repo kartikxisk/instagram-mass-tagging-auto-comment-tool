@@ -1162,3 +1162,140 @@ input::placeholder {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================
+   Proxy Management Styles
+   ========================================== */
+
+.proxies-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.proxies-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.proxies-info-box {
+  background: var(--bg-tertiary);
+  padding: var(--spacing-md);
+  margin: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.proxies-info-box p {
+  margin-bottom: var(--spacing-xs);
+}
+
+.proxies-info-box p:last-child {
+  margin-bottom: 0;
+}
+
+.proxy-account-group {
+  margin-bottom: var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.proxy-account-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--bg-hover);
+}
+
+.proxy-account-name {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.proxy-account-stats {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.proxy-account-list {
+  padding: var(--spacing-sm);
+}
+
+.proxy-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  gap: var(--spacing-sm);
+}
+
+.proxy-item:last-child {
+  margin-bottom: 0;
+}
+
+.proxy-address {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  flex: 1;
+}
+
+.proxy-status-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+}
+
+.proxy-active .proxy-status-badge {
+  background: rgba(0, 210, 106, 0.2);
+  color: var(--success);
+}
+
+.proxy-flagged .proxy-status-badge {
+  background: rgba(255, 184, 0, 0.2);
+  color: var(--warning);
+}
+
+.proxy-available .proxy-status-badge {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.proxy-reason {
+  font-size: 9px;
+  color: var(--text-muted);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-tiny {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.btn-unflag {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.btn-unflag:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.text-warning {
+  color: var(--warning);
+}

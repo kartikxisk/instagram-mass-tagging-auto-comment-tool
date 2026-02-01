@@ -6,6 +6,9 @@ const readline = require('readline');
 const { execSync } = require('child_process');
 require('dotenv').config();
 
+// Import centralized login helper
+const loginHelper = require('../utils/loginHelper');
+
 // Use stealth plugin to avoid detection
 puppeteer.use(StealthPlugin());
 
@@ -240,70 +243,20 @@ function askUserToContinue(message) {
 
     try {
       console.log(`🌐 Navigating to Instagram login page for ${username}...`);
-      const loginUrl = process.env.INSTAGRAM_LOGIN_URL || 'https://instagram.com/accounts/login/';
-      await page.goto(loginUrl, {
-        waitUntil: 'networkidle2',
-        timeout: 60000,
-      });
-
-      // Wait for either old or new login form
-      // Old form: input[name="username"], input[name="password"]
-      // New Meta form: input[name="email"], input[name="pass"]
-      let usernameSelector = null;
-      let passwordSelector = null;
       
-      try {
-        // Check for old Instagram form first
-        await page.waitForSelector('input[name="username"]', { timeout: 5000 });
-        usernameSelector = 'input[name="username"]';
-        passwordSelector = 'input[name="password"]';
-        console.log(`📝 Detected OLD Instagram login form`);
-      } catch (e) {
-        // Try new Meta login form
-        try {
-          await page.waitForSelector('input[name="email"]', { timeout: 10000 });
-          usernameSelector = 'input[name="email"]';
-          passwordSelector = 'input[name="pass"]';
-          console.log(`📝 Detected NEW Meta login form`);
-        } catch (e2) {
-          throw new Error('Could not find login form (tried both old and new formats)');
-        }
+      // Use centralized login helper to fill the form
+      const fillResult = await loginHelper.fillLoginForm(page, { username, password });
+      
+      if (!fillResult.success) {
+        throw new Error(fillResult.error || 'Failed to fill login form');
       }
-
-      console.log(`🧠 Autofilling credentials for ${username}...`);
-      await page.type(usernameSelector, username, { delay: 100 });
-      await page.type(passwordSelector, password, { delay: 100 });
-
-      // Click login button - handle both old and new forms
-      // Old form: button[type="submit"]
-      // New form: div[role="button"] with "Log in" text
-      const loginClicked = await page.evaluate(() => {
-        // Try old submit button first
-        const submitBtn = document.querySelector('button[type="submit"]');
-        if (submitBtn) {
-          submitBtn.click();
-          return 'old';
-        }
-        
-        // Try new Meta login button
-        const buttons = document.querySelectorAll('div[role="button"]');
-        for (const btn of buttons) {
-          if (btn.innerText.trim() === 'Log in') {
-            btn.click();
-            return 'new';
-          }
-        }
-        
-        return null;
-      });
-
-      if (loginClicked) {
-        console.log(`🔘 Clicked ${loginClicked} login button`);
-      } else {
-        // Fallback: press Enter
-        console.log(`🔘 Using Enter key to submit`);
-        await page.keyboard.press('Enter');
-      }
+      
+      console.log(`📝 Detected ${fillResult.formVersion} login form`);
+      console.log(`🧠 Credentials filled for ${username}`);
+      
+      // Click the login button
+      await loginHelper.clickLoginButton(page, fillResult.formVersion);
+      console.log(`🔘 Login button clicked`);
 
       await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
 

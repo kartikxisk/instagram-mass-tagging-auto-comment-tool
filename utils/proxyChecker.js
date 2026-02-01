@@ -14,9 +14,36 @@ const LOG_PATH = path.join(LOGS_DIR, 'proxy_check_log.csv');
 
 const config = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf-8'));
 
-// Support both old format (array) and new format (object with accounts/proxies)
+// Support both old format (array) and new format (object with accounts)
 const accounts = Array.isArray(config) ? config : (config.accounts || []);
-const proxyPool = Array.isArray(config) ? [] : (config.proxies || []);
+
+/**
+ * Parse proxy from various formats
+ * Supports: "ip:port:user:pass", "ip:port", or {address, port, username, password}
+ */
+function parseProxy(proxyInput) {
+  if (!proxyInput) return null;
+  
+  // Already an object
+  if (typeof proxyInput === 'object' && proxyInput.address) {
+    return proxyInput;
+  }
+  
+  // String format: "ip:port:user:pass" or "ip:port"
+  if (typeof proxyInput === 'string') {
+    const parts = proxyInput.split(':');
+    if (parts.length >= 2) {
+      return {
+        address: parts[0],
+        port: parts[1],
+        username: parts[2] || null,
+        password: parts[3] || null
+      };
+    }
+  }
+  
+  return null;
+}
 
 // Get proxies from accounts - support both single proxy and multiple proxies
 const accountProxies = [];
@@ -24,8 +51,9 @@ const accountProxies = [];
 accounts.forEach(acc => {
   // Check for multiple proxies array
   if (acc.proxies && Array.isArray(acc.proxies)) {
-    acc.proxies.forEach((proxy, idx) => {
-      if (proxy.address && proxy.port) {
+    acc.proxies.forEach((proxyInput, idx) => {
+      const proxy = parseProxy(proxyInput);
+      if (proxy && proxy.address && proxy.port) {
         accountProxies.push({
           label: `${proxy.address}:${proxy.port} (account: ${acc.username} [${idx + 1}/${acc.proxies.length}])`,
           proxy: proxy
@@ -33,26 +61,21 @@ accounts.forEach(acc => {
       }
     });
   }
-  // Check for single proxy object
-  else if (acc.proxy && acc.proxy.address && acc.proxy.port) {
-    accountProxies.push({
-      label: `${acc.proxy.address}:${acc.proxy.port} (account: ${acc.username})`,
-      proxy: acc.proxy
-    });
+  // Check for single proxy object or string
+  else if (acc.proxy) {
+    const proxy = parseProxy(acc.proxy);
+    if (proxy && proxy.address && proxy.port) {
+      accountProxies.push({
+        label: `${proxy.address}:${proxy.port} (account: ${acc.username})`,
+        proxy: proxy
+      });
+    }
   }
 });
 
-// Get proxies from global proxy pool
-const poolProxies = proxyPool
-  .filter(proxy => proxy.address && proxy.port)
-  .map(proxy => ({
-    label: `${proxy.address}:${proxy.port} (global pool)`,
-    proxy: proxy
-  }));
-
-// Combine all proxies (deduplicate by address:port)
+// Deduplicate proxies by address:port
 const seenProxies = new Set();
-const allProxies = [...accountProxies, ...poolProxies].filter(item => {
+const allProxies = accountProxies.filter(item => {
   const key = `${item.proxy.address}:${item.proxy.port}`;
   if (seenProxies.has(key)) return false;
   seenProxies.add(key);

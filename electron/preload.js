@@ -44,6 +44,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportTrackerData: () => ipcRenderer.invoke('export-tracker-data'),
   resetTrackerGlobal: () => ipcRenderer.invoke('reset-tracker-global'),
   
+  // Proxy management
+  getProxyStatus: () => ipcRenderer.invoke('get-proxy-status'),
+  clearFlaggedProxies: () => ipcRenderer.invoke('clear-flagged-proxies'),
+  unflagProxy: (proxyId) => ipcRenderer.invoke('unflag-proxy', proxyId),
+  
   // Data folder
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
   getDataPath: () => ipcRenderer.invoke('get-data-path'),

@@ -49,6 +49,34 @@ async function checkProxy(proxy) {
 }
 
 /**
+ * Parse proxy from various formats
+ * Supports: "ip:port:user:pass", "ip:port", or {address, port, username, password}
+ */
+function parseProxy(proxyInput) {
+  if (!proxyInput) return null;
+  
+  // Already an object
+  if (typeof proxyInput === 'object' && proxyInput.address) {
+    return proxyInput;
+  }
+  
+  // String format: "ip:port:user:pass" or "ip:port"
+  if (typeof proxyInput === 'string') {
+    const parts = proxyInput.split(':');
+    if (parts.length >= 2) {
+      return {
+        address: parts[0],
+        port: parts[1],
+        username: parts[2] || null,
+        password: parts.slice(3).join(':') || null // Handle passwords with colons
+      };
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Check all proxies from config
  */
 async function checkAllProxies(onProgress) {
@@ -63,11 +91,14 @@ async function checkAllProxies(onProgress) {
     for (const account of config.accounts) {
       if (account.proxies && Array.isArray(account.proxies)) {
         // Tag proxies with account info for reporting
-        account.proxies.forEach(proxy => {
-          allProxies.push({
-            ...proxy,
-            accountUsername: account.username
-          });
+        account.proxies.forEach(proxyInput => {
+          const proxy = parseProxy(proxyInput);
+          if (proxy) {
+            allProxies.push({
+              ...proxy,
+              accountUsername: account.username
+            });
+          }
         });
       }
     }

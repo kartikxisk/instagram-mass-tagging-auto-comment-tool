@@ -4,10 +4,12 @@
  * Features:
  * - Multi-account support (500-700 accounts)
  * - Batch processing (100 accounts per batch)
- * - Safety rules to avoid bans
+ * - Advanced anti-detection with fingerprinting
+ * - Human-like behavior simulation
  * - Proxy support (HTTP/SOCKS5)
  * - Cookie persistence
- * - Human-like behavior simulation
+ * - Session warmup
+ * - Time-of-day activity patterns
  * - Comprehensive logging
  */
 
@@ -16,8 +18,26 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
 
-// Apply stealth plugin
-puppeteer.use(StealthPlugin());
+// Apply stealth plugin with all evasions
+const stealth = StealthPlugin();
+// Enable all evasion techniques
+stealth.enabledEvasions.add('chrome.app');
+stealth.enabledEvasions.add('chrome.csi');
+stealth.enabledEvasions.add('chrome.loadTimes');
+stealth.enabledEvasions.add('chrome.runtime');
+stealth.enabledEvasions.add('defaultArgs');
+stealth.enabledEvasions.add('iframe.contentWindow');
+stealth.enabledEvasions.add('media.codecs');
+stealth.enabledEvasions.add('navigator.hardwareConcurrency');
+stealth.enabledEvasions.add('navigator.languages');
+stealth.enabledEvasions.add('navigator.permissions');
+stealth.enabledEvasions.add('navigator.plugins');
+stealth.enabledEvasions.add('navigator.webdriver');
+stealth.enabledEvasions.add('sourceurl');
+stealth.enabledEvasions.add('user-agent-override');
+stealth.enabledEvasions.add('webgl.vendor');
+stealth.enabledEvasions.add('window.outerdimensions');
+puppeteer.use(stealth);
 
 // Utilities
 const { createSession, saveCookies } = require('./utils/sessionManager');
@@ -29,10 +49,19 @@ const {
   delayBetweenAccounts, 
   longPause,
   getSessionDuration,
-  getTypingDelay 
+  getTypingDelay,
+  checkCooldown,
+  getTimeMultiplier
 } = require('./utils/delay');
 const { logMention, SessionStats, STATUS } = require('./utils/logger');
 const { setupProxyArgs, applyProxyAuthentication } = require('./utils/proxySetup');
+const { 
+  getActiveProxy, 
+  switchToNextProxy, 
+  flagProxy, 
+  getProxyId,
+  DETECTION_REASONS 
+} = require('./utils/proxyManager');
 const { getRandomUserAgent } = require('./utils/userAgents');
 const { generateAccountCommentBatches, buildCommentString } = require('./utils/tagDistribution');
 const { 
@@ -41,8 +70,20 @@ const {
   humanPause, 
   simulateReading,
   setupHumanBehavior,
-  randomWait
+  randomWait,
+  naturalMouseMove
 } = require('./utils/humanBehavior');
+const {
+  generateConsistentFingerprint,
+  sessionWarmup,
+  shouldProceed,
+  getDynamicDelay,
+  getActivityPatterns
+} = require('./utils/antiDetection');
+const {
+  applyInstagramFingerprint,
+  generateInstagramFingerprint
+} = require('./utils/instagramFingerprint');
 
 require('dotenv').config();
 
@@ -69,24 +110,21 @@ let globalCommentCount = 0;
 const accountProxyIndex = new Map();
 
 /**
- * Get proxy for an account (supports multiple proxies per account)
- * Priority: 1. Account-specific proxies (rotating), 2. Global proxy pool (rotating)
+ * Get proxy for an account (uses proxy manager for flagging support)
+ * Uses only the first non-flagged proxy for the account
  * @param {Object} account - Account object
- * @param {number} accountIndex - Account index for global pool rotation
- * @returns {Object|null} - Proxy configuration
+ * @param {number} accountIndex - Account index (unused, kept for compatibility)
+ * @returns {string|null} - Proxy string or null
  */
 function getProxyForAccount(account, accountIndex) {
-  // If account has its own proxy array, rotate through them
+  // If account has proxies array, use proxy manager to get active (non-flagged) proxy
   if (account.proxies && Array.isArray(account.proxies) && account.proxies.length > 0) {
-    // Get current index for this account
-    const currentIndex = accountProxyIndex.get(account.username) || 0;
-    const proxy = account.proxies[currentIndex % account.proxies.length];
-    
-    // Update index for next time
-    accountProxyIndex.set(account.username, currentIndex + 1);
-    
-    console.log(`🔄 Using account-specific proxy ${currentIndex % account.proxies.length + 1}/${account.proxies.length}`);
-    return proxy;
+    const activeProxy = getActiveProxy(account.username, account.proxies);
+    if (activeProxy) {
+      const proxyId = getProxyId(activeProxy);
+      console.log(`🔒 Using proxy ${proxyId} for ${account.username}`);
+      return activeProxy;
+    }
   }
   
   // If account has a single proxy object, use it
@@ -94,30 +132,25 @@ function getProxyForAccount(account, accountIndex) {
     return account.proxy;
   }
   
-  // Otherwise, rotate from global proxy pool
-  const proxies = config.proxies || [];
-  if (proxies.length > 0) {
-    const proxyIndex = accountIndex % proxies.length;
-    console.log(`🔄 Using global proxy pool ${proxyIndex + 1}/${proxies.length}`);
-    return proxies[proxyIndex];
-  }
-  
   return null;
 }
 
 /**
- * Get next proxy for an account (for retries or multiple sessions)
+ * Switch to next proxy for an account (when current proxy is flagged)
  * @param {Object} account - Account object
- * @param {number} accountIndex - Account index for global pool rotation
- * @returns {Object|null} - Next proxy configuration
+ * @param {string} reason - Reason for switching
+ * @returns {string|null} - Next proxy or null
  */
-function getNextProxyForAccount(account, accountIndex) {
-  // Force rotation to next proxy
-  if (account.proxies && Array.isArray(account.proxies) && account.proxies.length > 0) {
-    const currentIndex = accountProxyIndex.get(account.username) || 0;
-    accountProxyIndex.set(account.username, currentIndex + 1);
+function switchProxyForAccount(account, reason) {
+  if (account.proxies && Array.isArray(account.proxies) && account.proxies.length > 1) {
+    const newProxy = switchToNextProxy(account.username, account.proxies, reason);
+    if (newProxy) {
+      console.log(`🔄 Switched ${account.username} to new proxy: ${getProxyId(newProxy)}`);
+      return newProxy;
+    }
   }
-  return getProxyForAccount(account, accountIndex + 1);
+  console.log(`⚠️ No backup proxies available for ${account.username}`);
+  return null;
 }
 
 /**
@@ -200,7 +233,7 @@ async function postComment(page, tags, account) {
     }
     if (preCheck.rateLimited) {
       console.log('⚠️ Rate limited! Taking a long break before retrying...');
-      await longPause();
+      await longPause('Rate limited');
       return { success: false, error: 'Rate limited - taking a break' };
     }
     
@@ -227,60 +260,77 @@ async function postComment(page, tags, account) {
       return { success: false, error: 'Comment textarea not found' };
     }
     
-    // Click on textarea to focus
+    // Move mouse to textarea naturally before clicking
+    const textareaBox = await textarea.boundingBox();
+    if (textareaBox) {
+      await naturalMouseMove(page, 
+        textareaBox.x + textareaBox.width * (0.3 + Math.random() * 0.4),
+        textareaBox.y + textareaBox.height * (0.3 + Math.random() * 0.4)
+      );
+    }
+    
+    // Click on textarea to focus with natural timing
     await textarea.click();
-    await humanPause(0.5, 1);
+    await humanPause(0.8, 1.8);
     
     // Build the comment with tags
     const comment = buildCommentString(tags, true);
     
-    // Type each tag with mentions
+    // Type each tag with human-like mentions
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i];
-      const mention = `@${tag}`;
       
-      // Type the @ symbol
-      await page.keyboard.type('@', { delay: getTypingDelay() });
-      await randomWait(200, 500);
-      
-      // Type the username character by character
-      for (const char of tag) {
-        await page.keyboard.type(char, { delay: getTypingDelay() });
-        await randomWait(50, 150);
+      // Pre-typing pause (thinking about who to tag)
+      if (i > 0) {
+        await humanPause(0.5, 1.5);
       }
       
-      // Wait for autocomplete dropdown
-      await randomWait(1000, 2000);
+      // Type the @ symbol with natural delay
+      await page.keyboard.type('@', { delay: getDynamicDelay(80, 150) });
+      await randomWait(150, 400);
       
-      // Select from dropdown (press down then enter)
+      // Type the username with human-like patterns (including possible typos)
+      await humanType(page, tag, { 
+        minDelay: 50, 
+        maxDelay: 150, 
+        mistakes: false, // Don't make mistakes on usernames
+        burstTyping: true 
+      });
+      
+      // Wait for autocomplete dropdown to appear (variable timing)
+      await randomWait(800, 2500);
+      
+      // Natural dropdown selection
       await page.keyboard.press('ArrowDown');
-      await randomWait(200, 400);
+      await randomWait(150, 350);
       await page.keyboard.press('Enter');
-      await randomWait(300, 600);
+      await randomWait(250, 500);
       
-      // Add space after tag
-      await page.keyboard.type(' ', { delay: getTypingDelay() });
-      await randomWait(100, 300);
+      // Add space after tag with natural timing
+      await page.keyboard.type(' ', { delay: getDynamicDelay(60, 120) });
+      await randomWait(80, 250);
     }
     
-    // Optionally add a suffix (emoji or text)
-    if (Math.random() > 0.3) {
-      const suffixes = ['🔥', '❤️', '💯', '✨', '👆', '💪', ''];
+    // Optionally add a suffix (emoji or text) - more varied options
+    if (Math.random() > 0.4) {
+      const suffixes = ['🔥', '❤️', '💯', '✨', '👆', '💪', '👀', '🙌', '⭐', ''];
       const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
       if (suffix) {
-        await humanPause(0.3, 0.8);
+        await humanPause(0.4, 1.2);
         await page.keyboard.type(suffix);
+        await randomWait(100, 300);
       }
     }
     
-    // Small pause before posting
-    await humanPause(0.5, 1.5);
+    // Review pause before posting (reading what we typed)
+    console.log('   📝 Reviewing comment...');
+    await humanPause(1.0, 2.5);
     
     // Submit the comment (Enter key)
     await page.keyboard.press('Enter');
     
-    // Wait for comment to be posted
-    await randomWait(2000, 4000);
+    // Wait for comment to be posted with uncertainty
+    await randomWait(2500, 5000);
     
     // Check for errors after posting
     const postCheck = await checkForErrors(page);
@@ -307,8 +357,17 @@ async function postComment(page, tags, account) {
  * @returns {Object} - Account result
  */
 async function processAccount(account, allTags, targetPost, accountIndex) {
+  // Check if we should proceed based on time patterns
+  const proceedCheck = shouldProceed();
+  if (!proceedCheck.proceed) {
+    console.log(`⏰ ${proceedCheck.reason}`);
+    console.log(`   Waiting ${Math.round(proceedCheck.waitTime / 60000)} minutes for better timing...`);
+    await new Promise(r => setTimeout(r, proceedCheck.waitTime));
+  }
+  
   const proxy = getProxyForAccount(account, accountIndex);
   const userAgent = getRandomUserAgent();
+  const fingerprint = generateConsistentFingerprint(account.username);
   const sessionDuration = getSessionDuration();
   const sessionStart = Date.now();
   
@@ -320,25 +379,27 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
     errors: []
   };
   
-  // Generate comment batches for this account (reduced for safety)
+  // Generate comment batches for this account (very conservative)
   const { commentBatches } = generateAccountCommentBatches(allTags);
-  const commentsToPost = Math.min(
-    commentBatches.length,
-    Math.floor(Math.random() * 2) + 2 // 2-3 comments per account (reduced from 5-7)
-  );
+  
+  // Even more conservative: 1-2 comments per account based on time of day
+  const timeMultiplier = getTimeMultiplier();
+  const maxComments = timeMultiplier > 1.5 ? 1 : (Math.random() < 0.7 ? 2 : 1);
+  const commentsToPost = Math.min(commentBatches.length, maxComments);
   
   console.log(`\n${'='.repeat(50)}`);
   console.log(`👤 Processing account: ${account.username}`);
   console.log(`🔗 Target: ${targetPost}`);
   console.log(`📝 Comments planned: ${commentsToPost}`);
   console.log(`⏱️  Session duration: ${Math.round(sessionDuration / 60000)} minutes`);
+  console.log(`🌙 Time multiplier: ${timeMultiplier.toFixed(2)}x (${getActivityPatterns().multiplier < 0.5 ? 'low activity period' : 'normal activity'})`);
   if (proxy) {
     console.log(`🌐 Proxy: ${proxy.address}:${proxy.port}`);
   }
-  console.log(`🌐 User Agent: ${userAgent.substring(0, 50)}...`);
+  console.log(`🛡️ Fingerprint: ${fingerprint.platform.name} / ${fingerprint.timezone}`);
   console.log('='.repeat(50));
   
-  // Puppeteer launch options
+  // Puppeteer launch options with enhanced stealth
   const launchOptions = {
     headless: false, // Set to true for production
     args: [
@@ -347,9 +408,21 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
       '--disable-dev-shm-usage',
       '--disable-blink-features=AutomationControlled',
       '--disable-infobars',
-      '--window-size=1920,1080'
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-features=TranslateUI',
+      '--disable-ipc-flooding-protection',
+      '--window-size=1920,1080',
+      `--lang=${fingerprint.languages[0]}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-extensions',
+      '--disable-default-apps',
+      '--disable-popup-blocking'
     ],
-    defaultViewport: null
+    defaultViewport: null,
+    ignoreDefaultArgs: ['--enable-automation']
   };
   
   // Setup proxy
@@ -363,21 +436,30 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
     browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
     
-    // Setup human behavior
-    await setupHumanBehavior(page);
+    // Apply Instagram-specific fingerprint FIRST (before any navigation)
+    const igFingerprint = await applyInstagramFingerprint(page, account.username);
+    console.log(`🔐 Instagram fingerprint applied: Chrome ${igFingerprint.chromeVersion}, ${igFingerprint.platformKey}`);
     
-    // Set user agent
-    await page.setUserAgent(userAgent);
+    // Setup additional human behavior
+    await setupHumanBehavior(page, account.username);
     
     // Apply proxy authentication
     if (authenticateConfig) {
       await applyProxyAuthentication(page, authenticateConfig, account.username);
     }
     
-    // Set extra HTTP headers
+    // Set extra HTTP headers matching Instagram fingerprint
     await page.setExtraHTTPHeaders({
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+      'Accept-Language': igFingerprint.acceptLanguage,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Encoding': igFingerprint.acceptEncoding,
+      'Cache-Control': 'max-age=0',
+      ...igFingerprint.clientHints,
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1'
     });
     
     // Login / restore session
@@ -425,6 +507,10 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
     
     console.log(`✅ Logged in as ${account.username}`);
     
+    // Session warmup - browse naturally before taking actions
+    console.log(`🔥 Warming up session...`);
+    await sessionWarmup(page, getDynamicDelay(15000, 45000));
+    
     // Navigate to target post with retry logic for rate limiting
     console.log(`📍 Navigating to target post...`);
     let navigationSuccess = false;
@@ -433,6 +519,9 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
     
     while (!navigationSuccess && navigationRetries < maxNavigationRetries) {
       try {
+        // Random delay before navigation (don't go directly)
+        await randomWait(2000, 5000);
+        
         await page.goto(targetPost, { 
           waitUntil: 'networkidle2',
           timeout: 60000 
@@ -442,9 +531,13 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
         const navCheck = await checkForErrors(page);
         if (navCheck.rateLimited) {
           console.log(`⚠️ Rate limited on navigation (attempt ${navigationRetries + 1}/${maxNavigationRetries}). Waiting...`);
+          // Flag proxy on repeated rate limiting
+          if (navigationRetries >= 1 && proxy) {
+            switchProxyForAccount(account, DETECTION_REASONS.RATE_LIMITED);
+          }
           navigationRetries++;
           if (navigationRetries < maxNavigationRetries) {
-            await longPause();
+            await longPause('Rate limited - cooling down');
             continue;
           } else {
             throw new Error('Rate limited after multiple attempts');
@@ -455,6 +548,10 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
           console.log(`⚠️ Checkpoint detected for ${account.username}`);
           stats.recordCheckpoint(account.username);
           accountResult.status = 'checkpoint';
+          // Flag the proxy for checkpoint
+          if (proxy) {
+            switchProxyForAccount(account, DETECTION_REASONS.CHALLENGE_REQUIRED);
+          }
           return accountResult;
         }
         
@@ -464,26 +561,40 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
         console.log(`⚠️ Navigation failed (attempt ${navigationRetries}/${maxNavigationRetries}): ${navError.message}`);
         if (navigationRetries < maxNavigationRetries) {
           console.log('🔄 Retrying after delay...');
-          await longPause();
+          await longPause('Navigation retry');
         } else {
           throw navError;
         }
       }
     }
     
-    // Simulate human reading behavior
-    console.log(`👀 Simulating reading behavior...`);
-    await simulateReading(page, Math.floor(Math.random() * 5) + 3); // 3-8 seconds
+    // Extensive reading simulation before commenting (like a real user would)
+    console.log(`👀 Viewing post content...`);
+    const readingTime = getDynamicDelay(8000, 20000);
+    await simulateReading(page, Math.ceil(readingTime / 1000));
     
-    // Random scroll before commenting
+    // Random scroll - view comments/likes like a real user
     await randomScroll(page, Math.floor(Math.random() * 3) + 2);
     
-    // Post comments
+    // Brief pause after scrolling (absorbing content)
+    await humanPause(2, 5);
+    
+    // Post comments with extensive delays
     for (let i = 0; i < commentsToPost; i++) {
       // Check session duration
       if (Date.now() - sessionStart > sessionDuration) {
         console.log(`⏱️ Session time limit reached for ${account.username}`);
         break;
+      }
+      
+      // Check cooldown status
+      const cooldownCheck = checkCooldown(globalCommentCount, 20);
+      if (cooldownCheck.shouldCooldown) {
+        console.log(`🧊 Cooldown triggered - waiting ${Math.round(cooldownCheck.waitTime / 60000)} minutes...`);
+        await new Promise(r => setTimeout(r, cooldownCheck.waitTime));
+      } else if (cooldownCheck.extraDelay) {
+        console.log(`   📉 Progressive slowdown: +${(cooldownCheck.extraDelay / 1000).toFixed(0)}s`);
+        await new Promise(r => setTimeout(r, cooldownCheck.extraDelay));
       }
       
       const tags = commentBatches[i];
@@ -508,10 +619,11 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
           tagsCount: tags.length
         });
         
-        // Check if we need a long pause (reduced from 50 to 30 comments)
-        if (globalCommentCount > 0 && globalCommentCount % 30 === 0) {
+        // Check if we need a long pause (every 15-25 comments, randomized)
+        const pauseThreshold = 15 + Math.floor(Math.random() * 10);
+        if (globalCommentCount > 0 && globalCommentCount % pauseThreshold === 0) {
           console.log(`\n⏸️ Reached ${globalCommentCount} comments, taking a long break...`);
-          await longPause();
+          await longPause('Activity limit reached');
         }
         
       } else {
@@ -528,19 +640,50 @@ async function processAccount(account, allTags, targetPost, accountIndex) {
           error: result.error
         });
         
-        // If blocked, stop this account
-        if (result.error.includes('blocked')) {
+        // If blocked, stop this account and flag the proxy
+        if (result.error.includes('blocked') || result.error.includes('Action blocked')) {
           stats.recordBlocked(account.username);
           accountResult.status = 'blocked';
+          // Flag the proxy as suspicious
+          if (proxy) {
+            switchProxyForAccount(account, DETECTION_REASONS.ACTION_BLOCKED);
+          }
+          // Extra delay after blocked detection
+          console.log('🚨 Block detected - adding extra cooling period...');
+          await longPause('Block detected - cooling down');
           break;
+        }
+        
+        // Flag proxy on rate limiting
+        if (result.error.includes('Rate limited') || result.error.includes('429')) {
+          if (proxy) {
+            switchProxyForAccount(account, DETECTION_REASONS.RATE_LIMITED);
+          }
+        }
+        
+        // Flag proxy on checkpoint/challenge
+        if (result.error.includes('Checkpoint') || result.error.includes('Challenge')) {
+          if (proxy) {
+            switchProxyForAccount(account, DETECTION_REASONS.CHALLENGE_REQUIRED);
+          }
         }
       }
       
-      // Delay between comments (35-120 seconds)
+      // Delay between comments (with time-of-day awareness)
       if (i < commentsToPost - 1) {
         await delayBetweenComments();
+        
+        // Occasionally do additional browsing between comments (like checking feed)
+        if (Math.random() < 0.25) {
+          console.log('   📱 Brief browsing activity...');
+          await simulateReading(page, Math.floor(Math.random() * 10) + 5);
+        }
       }
     }
+    
+    // Post-activity cooldown browsing (don't leave immediately after commenting)
+    console.log('👋 Post-activity browsing before leaving...');
+    await simulateReading(page, getDynamicDelay(5000, 15000) / 1000);
     
     // Save cookies before closing
     await saveCookies(page, account.username);

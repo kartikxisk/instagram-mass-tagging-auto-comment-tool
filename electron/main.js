@@ -811,7 +811,56 @@ ipcMain.handle('reset-tracker-global', async () => {
 });
 
 /**
+ * Get proxy status for all accounts (including flagged proxies)
+ */
+ipcMain.handle('get-proxy-status', async () => {
+  try {
+    const proxyManager = require(path.join(__dirname, '../utils/proxyManager'));
+    const paths = getPaths();
+    const configPath = path.join(paths.config, 'accounts.json');
+    
+    let accounts = [];
+    if (fs.existsSync(configPath)) {
+      const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      accounts = configData.accounts || [];
+    }
+    
+    const status = proxyManager.getProxyStatus(accounts);
+    return { success: true, status };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Clear all flagged proxies
+ */
+ipcMain.handle('clear-flagged-proxies', async () => {
+  try {
+    const proxyManager = require(path.join(__dirname, '../utils/proxyManager'));
+    proxyManager.clearFlaggedProxies();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Unflag a specific proxy
+ */
+ipcMain.handle('unflag-proxy', async (event, proxyId) => {
+  try {
+    const proxyManager = require(path.join(__dirname, '../utils/proxyManager'));
+    proxyManager.unflagProxy(proxyId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
  * Manual login - Opens a browser window for manual Instagram login with auto-fill
+ * Supports both OLD and NEW Instagram login forms
  */
 ipcMain.handle('manual-login', async (event, credentials) => {
   try {
@@ -820,6 +869,9 @@ ipcMain.handle('manual-login', async (event, credentials) => {
     const puppeteer = require('puppeteer-extra');
     const StealthPlugin = require('puppeteer-extra-plugin-stealth');
     puppeteer.use(StealthPlugin());
+    
+    // Import centralized login helper
+    const loginHelper = require(path.join(__dirname, '../utils/loginHelper'));
     
     // Ensure cookies directory exists
     const paths = getPaths();
@@ -845,23 +897,18 @@ ipcMain.handle('manual-login', async (event, credentials) => {
     // Set user agent
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
-    // Navigate to Instagram login
-    await page.goto('https://www.instagram.com/accounts/login/', {
-      waitUntil: 'networkidle2',
-      timeout: 60000
-    });
+    // Use centralized login helper to fill the form (handles both OLD and NEW forms)
+    const fillResult = await loginHelper.fillLoginForm(page, { username, password });
     
-    // Wait for login form to be ready
-    await page.waitForSelector('input[name="username"]', { timeout: 10000 });
+    if (!fillResult.success) {
+      await browser.close();
+      throw new Error(fillResult.error || 'Failed to fill login form');
+    }
     
-    // Auto-fill username
-    await page.type('input[name="username"]', username, { delay: 50 });
+    console.log(`📝 Detected ${fillResult.formVersion} login form for ${username}`);
     
-    // Auto-fill password
-    await page.type('input[name="password"]', password, { delay: 50 });
-    
-    // Click the login button
-    await page.click('button[type="submit"]');
+    // Click the login button (handles both form types)
+    await loginHelper.clickLoginButton(page, fillResult.formVersion);
     
     // Wait for user to complete any verification (2FA, captcha, etc.)
     // We'll check for logged-in indicators periodically
@@ -875,32 +922,19 @@ ipcMain.handle('manual-login', async (event, credentials) => {
         // Check if we're on the home page or if login form is gone
         const url = page.url();
         const isLoginPage = url.includes('/accounts/login');
-        const isChallengePage = url.includes('/challenge');
+        const isChallengePage = url.includes('/challenge') || url.includes('/checkpoint');
         
-        // Check for logged-in indicators
-        const hasHomeContent = await page.evaluate(() => {
-          // Check for elements that only appear when logged in
-          const feedItems = document.querySelectorAll('article');
-          const profileLink = document.querySelector('a[href*="/direct/inbox"]');
-          const searchIcon = document.querySelector('svg[aria-label="Search"]');
-          const homeIcon = document.querySelector('svg[aria-label="Home"]');
-          const createIcon = document.querySelector('svg[aria-label="New post"]');
-          return feedItems.length > 0 || profileLink || searchIcon || homeIcon || createIcon;
-        });
+        // Check for logged-in indicators using loginHelper
+        const isLoggedInNow = await loginHelper.isLoginSuccessful(page);
         
         // Check for error messages
-        const hasError = await page.evaluate(() => {
-          const errorMsg = document.querySelector('#slfErrorAlert');
-          const wrongPassword = document.body.innerText.includes('Sorry, your password was incorrect');
-          return errorMsg || wrongPassword;
-        });
-        
-        if (hasError) {
-          await browser.close();
-          throw new Error('Invalid username or password');
+        const loginError = await loginHelper.checkLoginError(page);
+        if (loginError) {
+          // Don't throw immediately - user might need to fix and retry
+          console.log(`Login error detected: ${loginError}`);
         }
         
-        if (!isLoginPage && !isChallengePage && hasHomeContent) {
+        if (isLoggedInNow) {
           loggedIn = true;
           break;
         }
@@ -928,6 +962,9 @@ ipcMain.handle('manual-login', async (event, credentials) => {
       await browser.close();
       throw new Error('Login timeout. Please try again.');
     }
+    
+    // Handle post-login popups
+    await loginHelper.handlePostLoginPopups(page);
     
     // Wait a bit more to ensure all cookies are set
     await new Promise(r => setTimeout(r, 2000));
