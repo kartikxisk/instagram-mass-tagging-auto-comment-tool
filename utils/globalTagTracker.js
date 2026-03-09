@@ -157,10 +157,7 @@ class GlobalTagTracker {
       totalUniqueUsersTagged: this.taggedUsers.size,
       totalTagsAttempted: this.stats.totalTagsAttempted,
       duplicatesPrevented: this.stats.duplicatesPrevented,
-      uniqueTagsThisSession: this.stats.uniqueUsersTagged,
-      successRate: this.stats.totalTagsAttempted > 0 
-        ? ((this.stats.uniqueUsersTagged / this.stats.totalTagsAttempted) * 100).toFixed(2) + '%'
-        : '0%'
+      uniqueTagsThisSession: this.stats.uniqueUsersTagged
     };
   }
 
@@ -205,7 +202,7 @@ class GlobalTagTracker {
     console.log(`📊 Total Tags Attempted: ${stats.totalTagsAttempted}`);
     console.log(`📊 Duplicates Prevented: ${stats.duplicatesPrevented}`);
     console.log(`📊 Unique Tags This Session: ${stats.uniqueTagsThisSession}`);
-    console.log(`📊 Success Rate: ${stats.successRate}`);
+    // Success rate removed from display
     console.log('📊 ═══════════════════════════════════════\n');
   }
 

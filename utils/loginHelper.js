@@ -87,15 +87,18 @@ async function detectLoginFormVersion(page) {
  */
 async function waitForLoginForm(page, timeout = 15000) {
   const startTime = Date.now();
-  
+  console.log(`⏳ waitForLoginForm: waiting up to ${timeout}ms`);
+
   while (Date.now() - startTime < timeout) {
     const version = await detectLoginFormVersion(page);
     if (version !== 'UNKNOWN') {
+      console.log(`✅ waitForLoginForm: detected ${version}`);
       return version;
     }
     await new Promise(r => setTimeout(r, 500));
   }
-  
+
+  console.log('⚠️ waitForLoginForm: timeout - login form not found');
   throw new Error('Login form not found within timeout');
 }
 
@@ -105,6 +108,7 @@ async function waitForLoginForm(page, timeout = 15000) {
  */
 async function handleCookieConsent(page) {
   try {
+    console.log('🍪 handleCookieConsent: checking for cookie consent popup');
     // Try multiple cookie accept button selectors
     const cookieSelectors = [
       'button[class*="aOOlW"]',
@@ -120,7 +124,7 @@ async function handleCookieConsent(page) {
         const btn = await page.$(selector);
         if (btn) {
           await btn.click();
-          console.log('🍪 Cookie consent handled');
+          console.log('🍪 handleCookieConsent: cookie consent handled');
           await new Promise(r => setTimeout(r, 1000));
           return true;
         }
@@ -131,6 +135,7 @@ async function handleCookieConsent(page) {
   } catch (e) {
     // Cookie popup might not appear
   }
+  console.log('🍪 handleCookieConsent: no cookie consent popup found');
   return false;
 }
 
@@ -141,28 +146,52 @@ async function handleCookieConsent(page) {
  * @param {string} text - Text to type
  */
 async function humanType(page, selector, text) {
-  const input = await page.$(selector);
-  if (!input) {
-    throw new Error(`Input not found: ${selector}`);
-  }
-  
-  // Click to focus
-  await input.click();
-  await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
-  
-  // Clear existing content
-  await input.click({ clickCount: 3 });
-  await page.keyboard.press('Backspace');
-  await new Promise(r => setTimeout(r, 100));
-  
-  // Type with random delays
-  for (const char of text) {
-    await page.keyboard.type(char, { delay: 50 + Math.random() * 100 });
-    
-    // Occasional longer pause (thinking)
-    if (Math.random() < 0.1) {
-      await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+  console.log(`✍️ humanType: typing into ${selector}`);
+
+  // Wait for the element to be present and visible
+  await page.waitForSelector(selector, { visible: true, timeout: 7000 }).catch(() => {});
+
+  try {
+    // Clear value using the selector inside page context to avoid detached ElementHandles
+    await page.$eval(selector, (element) => {
+      try {
+        element.focus();
+        if ('value' in element) {
+          element.value = '';
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+          element.innerText = '';
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      } catch (e) {}
+    }).catch(() => {});
+
+    await new Promise(r => setTimeout(r, 100));
+
+    // Try to use ElementHandle.type when available, otherwise focus+keyboard
+    const handle = await page.$(selector);
+    if (handle && typeof handle.type === 'function') {
+      await handle.type(text, { delay: 50 + Math.random() * 100 });
+    } else {
+      await page.focus(selector).catch(() => {});
+      for (const char of text) {
+        await page.keyboard.type(char, { delay: 50 + Math.random() * 100 });
+        if (Math.random() < 0.1) await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+      }
     }
+
+    // Fire input/change events in case the page uses frameworks listening to them
+    await page.$eval(selector, (element) => {
+      try {
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (e) {}
+    }).catch(() => {});
+
+    console.log(`✅ humanType: finished typing into ${selector}`);
+  } catch (err) {
+    throw new Error(`humanType failed for ${selector}: ${err.message}`);
   }
 }
 
@@ -173,57 +202,65 @@ async function humanType(page, selector, text) {
  * @returns {Promise<boolean>} - Whether click was successful
  */
 async function clickLoginButton(page, formVersion) {
+  console.log(`🔘 clickLoginButton: formVersion=${formVersion}`);
   try {
     if (formVersion === 'OLD') {
       // Old form: click submit button
       const submitBtn = await page.$('button[type="submit"]');
       if (submitBtn) {
         await submitBtn.click();
+        console.log('🔘 clickLoginButton: clicked OLD submit button');
         return true;
       }
     }
     
     if (formVersion === 'NEW') {
       // New form: find div[role="button"] with "Log in" text
-      const clicked = await page.evaluate(() => {
-        // Method 1: Find by role and text
-        const buttons = document.querySelectorAll('div[role="button"]');
-        for (const btn of buttons) {
-          const text = btn.innerText.trim().toLowerCase();
-          if (text === 'log in') {
-            btn.click();
-            return true;
+      const clickedMethod = await page.evaluate(() => {
+        try {
+          const buttons = document.querySelectorAll('div[role="button"]');
+          for (const btn of buttons) {
+            const text = btn.innerText.trim().toLowerCase();
+            if (text === 'log in') {
+              btn.click();
+              return 'role-text';
+            }
           }
+
+          const hiddenSubmit = document.querySelector('input[type="submit"]');
+          if (hiddenSubmit) {
+            hiddenSubmit.click();
+            return 'hidden-submit';
+          }
+
+          const form = document.querySelector('#login_form');
+          if (form) {
+            form.submit();
+            return 'form-submit';
+          }
+
+          return 'none';
+        } catch (e) {
+          return 'error';
         }
-        
-        // Method 2: Find submit input (hidden)
-        const hiddenSubmit = document.querySelector('input[type="submit"]');
-        if (hiddenSubmit) {
-          hiddenSubmit.click();
-          return true;
-        }
-        
-        // Method 3: Submit the form directly
-        const form = document.querySelector('#login_form');
-        if (form) {
-          form.submit();
-          return true;
-        }
-        
-        return false;
       });
-      
-      if (clicked) return true;
+
+      if (clickedMethod && clickedMethod !== 'none' && clickedMethod !== 'error') {
+        console.log(`🔘 clickLoginButton: clicked NEW login via ${clickedMethod}`);
+        return true;
+      }
     }
     
     // Fallback: press Enter
     await page.keyboard.press('Enter');
+    console.log('🔘 clickLoginButton: fallback - pressed Enter');
     return true;
     
   } catch (error) {
     console.error('Error clicking login button:', error.message);
     // Last resort: press Enter
     await page.keyboard.press('Enter');
+    console.log('🔘 clickLoginButton: error fallback - pressed Enter');
     return true;
   }
 }
@@ -258,7 +295,7 @@ async function checkLoginError(page) {
       
       return null;
     });
-    
+    if (error) console.log(`⚠️ checkLoginError: ${error}`);
     return error;
   } catch (e) {
     return null;
@@ -397,7 +434,8 @@ async function performLogin(page, account, options = {}) {
       });
       
       // Handle cookie consent
-      await handleCookieConsent(page);
+      const cookieHandled = await handleCookieConsent(page);
+      if (verbose) console.log(`🍪 performLogin: cookie consent handled=${cookieHandled}`);
       
       // Wait for and detect login form version
       const formVersion = await waitForLoginForm(page, 15000);
@@ -413,27 +451,33 @@ async function performLogin(page, account, options = {}) {
       
       // Small random delay before typing (human behavior)
       await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
-      
+
       // Enter username
+      if (verbose) console.log(`➡️ performLogin: typing username into ${selectors.username}`);
       await humanType(page, selectors.username, account.username);
+      if (verbose) console.log('➡️ performLogin: username typed');
       
       // Small pause between fields
       await new Promise(r => setTimeout(r, 300 + Math.random() * 500));
-      
+
       // Enter password
+      if (verbose) console.log(`➡️ performLogin: typing password into ${selectors.password}`);
       await humanType(page, selectors.password, account.password);
+      if (verbose) console.log('➡️ performLogin: password typed');
       
       // Small pause before clicking login
       await new Promise(r => setTimeout(r, 500 + Math.random() * 800));
       
       // Click login button
-      await clickLoginButton(page, formVersion);
+      const clickResult = await clickLoginButton(page, formVersion);
+      if (verbose) console.log(`🔘 performLogin: clickLoginButton returned ${clickResult}`);
       
       // Wait for navigation/response
       await page.waitForNavigation({ 
         waitUntil: 'networkidle2', 
         timeout: 30000 
       }).catch(() => {});
+      if (verbose) console.log(`🌐 performLogin: current URL ${page.url()}`);
       
       // Additional wait for page to stabilize
       await new Promise(r => setTimeout(r, 2000));
@@ -517,7 +561,8 @@ async function fillLoginForm(page, account) {
     });
     
     // Handle cookie consent
-    await handleCookieConsent(page);
+    const cookieHandled = await handleCookieConsent(page);
+    console.log(`🍪 fillLoginForm: cookie consent handled=${cookieHandled}`);
     
     // Wait for and detect login form version
     const formVersion = await waitForLoginForm(page, 15000);
@@ -530,13 +575,17 @@ async function fillLoginForm(page, account) {
     }
     
     // Enter username
+    console.log(`➡️ fillLoginForm: typing username into ${selectors.username}`);
     await humanType(page, selectors.username, account.username);
+    console.log('➡️ fillLoginForm: username typed');
     
     // Small pause between fields
     await new Promise(r => setTimeout(r, 300 + Math.random() * 500));
     
     // Enter password
+    console.log(`➡️ fillLoginForm: typing password into ${selectors.password}`);
     await humanType(page, selectors.password, account.password);
+    console.log('➡️ fillLoginForm: password typed');
     
     console.log(`📝 Login form filled for ${account.username}`);
     
@@ -557,13 +606,15 @@ async function fillLoginForm(page, account) {
 async function submitLoginForm(page, formVersion) {
   try {
     // Click login button
-    await clickLoginButton(page, formVersion);
+    const clickResult = await clickLoginButton(page, formVersion);
+    console.log(`🔘 submitLoginForm: clickLoginButton returned ${clickResult}`);
     
     // Wait for navigation/response
     await page.waitForNavigation({ 
       waitUntil: 'networkidle2', 
       timeout: 30000 
     }).catch(() => {});
+    console.log(`🌐 submitLoginForm: current URL ${page.url()}`);
     
     // Additional wait for page to stabilize
     await new Promise(r => setTimeout(r, 2000));

@@ -3,27 +3,21 @@
  * Tracks which users have been tagged across all accounts to prevent duplicates
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
+
+const { getDataPath } = require("./paths");
 
 /**
  * Get the data directory path
- * Uses Electron's userData path when packaged, otherwise project root
+ * Uses centralized paths utility
  */
 function getDataDir() {
-  try {
-    const { app } = require('electron');
-    if (app && app.isPackaged) {
-      return path.join(app.getPath('userData'), 'data');
-    }
-  } catch (e) {
-    // Not in Electron context
-  }
-  return path.join(__dirname, '..', 'data');
+  return getDataPath();
 }
 
 const TRACKER_DIR = getDataDir();
-const TRACKER_FILE = path.join(TRACKER_DIR, 'tagged_users.json');
+const TRACKER_FILE = path.join(TRACKER_DIR, "tagged_users.json");
 
 // In-memory tracking
 let taggedUsers = new Set();
@@ -31,6 +25,10 @@ let pendingTags = new Set(); // Tags currently being processed
 let sessionId = null;
 let successfulComments = 0;
 let failedComments = 0;
+
+// Debounce save to prevent race conditions with parallel accounts
+let saveTimeout = null;
+let savePending = false;
 
 /**
  * Initialize tracker - load from file or start fresh
@@ -57,7 +55,7 @@ function initialize(freshStart = false) {
   // Load existing data
   try {
     if (fs.existsSync(TRACKER_FILE)) {
-      const data = JSON.parse(fs.readFileSync(TRACKER_FILE, 'utf8'));
+      const data = JSON.parse(fs.readFileSync(TRACKER_FILE, "utf8"));
       taggedUsers = new Set(data.taggedUsers || []);
       sessionId = data.sessionId || Date.now().toString();
       successfulComments = data.successfulComments || 0;
@@ -70,7 +68,7 @@ function initialize(freshStart = false) {
       failedComments = 0;
     }
   } catch (error) {
-    console.error('Error loading tag tracker:', error.message);
+    console.error("Error loading tag tracker:", error.message);
     taggedUsers = new Set();
     sessionId = Date.now().toString();
     successfulComments = 0;
@@ -82,20 +80,40 @@ function initialize(freshStart = false) {
 }
 
 /**
- * Save tracker to file
+ * Save tracker to file (debounced to prevent race conditions)
  */
 function save() {
+  savePending = true;
+
+  // Clear existing timeout
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+
+  // Debounce: save after 100ms of no new save requests
+  saveTimeout = setTimeout(() => {
+    if (savePending) {
+      saveNow();
+      savePending = false;
+    }
+  }, 100);
+}
+
+/**
+ * Force immediate save (used for final saves)
+ */
+function saveNow() {
   try {
     const data = {
       sessionId,
       taggedUsers: Array.from(taggedUsers),
       successfulComments,
       failedComments,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
     };
     fs.writeFileSync(TRACKER_FILE, JSON.stringify(data, null, 2));
   } catch (error) {
-    console.error('Error saving tag tracker:', error.message);
+    console.error("Error saving tag tracker:", error.message);
   }
 }
 
@@ -105,7 +123,7 @@ function save() {
  * @returns {boolean}
  */
 function isTagged(username) {
-  const normalized = username.toLowerCase().replace('@', '');
+  const normalized = username.toLowerCase().replace("@", "");
   return taggedUsers.has(normalized) || pendingTags.has(normalized);
 }
 
@@ -115,8 +133,8 @@ function isTagged(username) {
  * @returns {string[]} - List of untagged usernames
  */
 function getUntaggedUsers(usernames) {
-  return usernames.filter(username => {
-    const normalized = username.toLowerCase().replace('@', '');
+  return usernames.filter((username) => {
+    const normalized = username.toLowerCase().replace("@", "");
     return !taggedUsers.has(normalized) && !pendingTags.has(normalized);
   });
 }
@@ -127,7 +145,7 @@ function getUntaggedUsers(usernames) {
  */
 function reserveTags(usernames) {
   for (const username of usernames) {
-    const normalized = username.toLowerCase().replace('@', '');
+    const normalized = username.toLowerCase().replace("@", "");
     pendingTags.add(normalized);
   }
 }
@@ -138,7 +156,7 @@ function reserveTags(usernames) {
  */
 function markAsTagged(usernames) {
   for (const username of usernames) {
-    const normalized = username.toLowerCase().replace('@', '');
+    const normalized = username.toLowerCase().replace("@", "");
     pendingTags.delete(normalized);
     taggedUsers.add(normalized);
   }
@@ -147,35 +165,32 @@ function markAsTagged(usernames) {
 }
 
 /**
- * Release reserved tags (if comment failed)
+ * Release reserved tags (if comment failed or cancelled)
  * @param {string[]} usernames - Usernames to release
+ * @param {boolean} countAsFailed - Whether to count as a failed comment (default: false)
  */
-function releaseTags(usernames) {
+function releaseTags(usernames, countAsFailed = false) {
   for (const username of usernames) {
-    const normalized = username.toLowerCase().replace('@', '');
+    const normalized = username.toLowerCase().replace("@", "");
     pendingTags.delete(normalized);
   }
-  failedComments++;
-  save(); // Persist the failed comment count
+  if (countAsFailed) {
+    failedComments++;
+    save(); // Persist the failed comment count
+  }
 }
 
 /**
  * Get statistics
- * @returns {Object} - { totalTagged, pending, sessionId, successRate }
+ * @returns {Object} - { totalTagged, pending, sessionId }
  */
 function getStats() {
-  const totalComments = successfulComments + failedComments;
-  const successRate = totalComments > 0 
-    ? Math.round((successfulComments / totalComments) * 100) 
-    : 0;
-  
   return {
     totalTagged: taggedUsers.size,
     pending: pendingTags.size,
     sessionId,
     successfulComments,
     failedComments,
-    successRate: `${successRate}%`
   };
 }
 
@@ -188,7 +203,7 @@ function reset() {
   sessionId = Date.now().toString();
   successfulComments = 0;
   failedComments = 0;
-  save();
+  saveNow(); // Use immediate save for reset
 }
 
 /**
@@ -207,6 +222,7 @@ function getNextBatch(allUsers, count) {
 module.exports = {
   initialize,
   save,
+  saveNow,
   isTagged,
   getUntaggedUsers,
   reserveTags,
@@ -214,5 +230,5 @@ module.exports = {
   releaseTags,
   getStats,
   reset,
-  getNextBatch
+  getNextBatch,
 };

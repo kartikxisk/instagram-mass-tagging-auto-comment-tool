@@ -10,6 +10,7 @@
       "min": 5,
       "max": 7
     },
-    "pauseAfterComments": 50
+    "pauseAfterComments": 20,
+    "pauseDurationMinutes": 30
   }
 }

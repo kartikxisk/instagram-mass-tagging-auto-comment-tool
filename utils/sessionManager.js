@@ -1,27 +1,12 @@
-const fs = require('fs');
-const path = require('path');
-require('dotenv').config();
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
 
 // Import the centralized login helper
-const loginHelper = require('./loginHelper');
+const loginHelper = require("./loginHelper");
 
-/**
- * Get the cookies directory path
- * Uses Electron's userData path when packaged, otherwise project root
- */
-function getCookiesDir() {
-  try {
-    const { app } = require('electron');
-    if (app && app.isPackaged) {
-      return path.join(app.getPath('userData'), 'cookies');
-    }
-  } catch (e) {
-    // Not in Electron context
-  }
-  return path.join(__dirname, '..', 'cookies');
-}
-
-const COOKIES_DIR = getCookiesDir();
+const { getCookiesPath } = require("./paths");
+const COOKIES_DIR = getCookiesPath();
 
 // Ensure cookies directory exists
 if (!fs.existsSync(COOKIES_DIR)) {
@@ -41,7 +26,9 @@ async function saveCookies(page, username) {
     console.log(`🍪 Cookies saved for ${username}`);
     return true;
   } catch (error) {
-    console.error(`❌ Failed to save cookies for ${username}: ${error.message}`);
+    console.error(
+      `❌ Failed to save cookies for ${username}: ${error.message}`,
+    );
     return false;
   }
 }
@@ -56,10 +43,10 @@ async function loadCookies(page, username) {
   try {
     const cookiePath = path.join(COOKIES_DIR, `${username}.json`);
     console.log(`🔍 [${username}] Looking for cookies at: ${cookiePath}`);
-    
+
     if (fs.existsSync(cookiePath)) {
-      const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
-      
+      const cookies = JSON.parse(fs.readFileSync(cookiePath, "utf8"));
+
       if (cookies.length > 0) {
         await page.setCookie(...cookies);
         console.log(`🍪 [${username}] Loaded ${cookies.length} cookies`);
@@ -99,7 +86,9 @@ function deleteCookies(username) {
       console.log(`🗑️ Deleted cookies for ${username}`);
     }
   } catch (error) {
-    console.error(`⚠️ Failed to delete cookies for ${username}: ${error.message}`);
+    console.error(
+      `⚠️ Failed to delete cookies for ${username}: ${error.message}`,
+    );
   }
 }
 
@@ -112,15 +101,16 @@ function deleteCookies(username) {
  * @returns {Object} - { success, checkpoint, blocked, error }
  */
 async function login(page, account, maxRetries = 3) {
-  // Use the centralized login helper
-  const result = await loginHelper.performLogin(page, account, { maxRetries, verbose: true });
-  
-  // Save cookies on successful login
-  if (result.success) {
-    await saveCookies(page, account.username);
-  }
-  
-  return result;
+  // Auto-login removed. Require manual login via manual-login flow.
+  console.log(
+    `🔐 Manual login required for ${account.username} - skipping automatic login.`,
+  );
+  return {
+    success: false,
+    checkpoint: false,
+    blocked: false,
+    error: "manual_login_required",
+  };
 }
 
 /**
@@ -132,32 +122,49 @@ async function login(page, account, maxRetries = 3) {
 async function loadSession(page, account) {
   // Try loading cookies first
   const cookiesLoaded = await loadCookies(page, account.username);
-  
+
   if (cookiesLoaded) {
     // Verify session is still valid
     try {
-      await page.goto('https://www.instagram.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-      
-      const isLoggedIn = await page.evaluate(() => {
-        return document.querySelector('svg[aria-label="Home"]') !== null ||
-               !window.location.href.includes('login');
+      await page.goto("https://www.instagram.com/", {
+        waitUntil: "networkidle2",
+        timeout: 30000,
       });
-      
+
+      const isLoggedIn = await page.evaluate(() => {
+        return (
+          document.querySelector('svg[aria-label="Home"]') !== null ||
+          !window.location.href.includes("login")
+        );
+      });
+
       if (isLoggedIn) {
         console.log(`✅ Session restored for ${account.username}`);
-        return { success: true, checkpoint: false, blocked: false, error: null };
+        return {
+          success: true,
+          checkpoint: false,
+          blocked: false,
+          error: null,
+        };
       }
     } catch (e) {
       console.log(`⚠️ Session verification failed for ${account.username}`);
     }
-    
+
     // Session invalid, delete old cookies
     deleteCookies(account.username);
   }
-  
-  // Fresh login required
-  console.log(`🔐 No valid session for ${account.username}, logging in...`);
-  return await login(page, account);
+
+  // Fresh login required - do not attempt automatic login. Ask user to perform manual login.
+  console.log(
+    `🔐 No valid session for ${account.username}. Manual login required.`,
+  );
+  return {
+    success: false,
+    checkpoint: false,
+    blocked: false,
+    error: "manual_login_required",
+  };
 }
 
 /**
@@ -179,10 +186,11 @@ function getAllSessions() {
     if (!fs.existsSync(COOKIES_DIR)) {
       return [];
     }
-    
-    return fs.readdirSync(COOKIES_DIR)
-      .filter(file => file.endsWith('.json'))
-      .map(file => file.replace('.json', ''));
+
+    return fs
+      .readdirSync(COOKIES_DIR)
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => file.replace(".json", ""));
   } catch (error) {
     console.error(`❌ Failed to get all sessions: ${error.message}`);
     return [];
@@ -197,17 +205,17 @@ function exportAllSessions() {
   try {
     const sessions = {};
     const sessionList = getAllSessions();
-    
-    sessionList.forEach(username => {
+
+    sessionList.forEach((username) => {
       try {
         const cookiePath = path.join(COOKIES_DIR, `${username}.json`);
-        const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
+        const cookies = JSON.parse(fs.readFileSync(cookiePath, "utf8"));
         sessions[username] = cookies;
       } catch (e) {
         console.warn(`⚠️ Failed to read session for ${username}: ${e.message}`);
       }
     });
-    
+
     return sessions;
   } catch (error) {
     console.error(`❌ Failed to export sessions: ${error.message}`);
@@ -223,7 +231,7 @@ function exportAllSessions() {
 function importSessionsFromObject(sessions) {
   let successCount = 0;
   let failedCount = 0;
-  
+
   try {
     Object.entries(sessions).forEach(([username, cookies]) => {
       try {
@@ -234,26 +242,32 @@ function importSessionsFromObject(sessions) {
           successCount++;
         }
       } catch (e) {
-        console.error(`❌ Failed to import session for ${username}: ${e.message}`);
+        console.error(
+          `❌ Failed to import session for ${username}: ${e.message}`,
+        );
         failedCount++;
       }
     });
   } catch (error) {
     console.error(`❌ Failed to import sessions: ${error.message}`);
   }
-  
-  return { success: successCount > 0, count: successCount, failed: failedCount };
+
+  return {
+    success: successCount > 0,
+    count: successCount,
+    failed: failedCount,
+  };
 }
 
-module.exports = { 
-  login, 
-  loadSession, 
-  createSession, 
-  saveCookies, 
-  loadCookies, 
-  hasCookies, 
+module.exports = {
+  login,
+  loadSession,
+  createSession,
+  saveCookies,
+  loadCookies,
+  hasCookies,
   deleteCookies,
   getAllSessions,
   exportAllSessions,
-  importSessionsFromObject
+  importSessionsFromObject,
 };

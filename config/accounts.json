@@ -1,41 +1,47 @@
 {
   "accounts": [
     {
-      "username": "are_yoo_aarav",
-      "password": "ninjaturtles",
+      "username": "ri.ya._001",
+      "password": "internship",
       "proxies": [
         "103.105.164.166:5335:rubjznrn:ihdzbirrms7a",
         "9.142.41.115:6285:rubjznrn:ihdzbirrms7a",
         "103.210.12.40:5968:rubjznrn:ihdzbirrms7a",
         "207.228.7.234:7416:rubjznrn:ihdzbirrms7a",
-        "130.180.234.182:7405:rubjznrn:ihdzbirrms7a",
-        "138.226.76.16:7705:rubjznrn:ihdzbirrms7a"
-      ]
-    },
-    {
-      "username": "are_yoo_anirudh",
-      "password": "ninjaturtles",
-      "proxies": [
-        "192.46.189.191:6184:rubjznrn:ihdzbirrms7a",
-        "193.160.83.66:6387:rubjznrn:ihdzbirrms7a",
-        "193.160.83.93:6414:rubjznrn:ihdzbirrms7a",
-        "46.203.56.219:5706:rubjznrn:ihdzbirrms7a",
-        "45.56.183.96:8418:rubjznrn:ihdzbirrms7a",
-        "138.226.71.215:7405:rubjznrn:ihdzbirrms7a",
         "130.180.235.240:5960:rubjznrn:ihdzbirrms7a"
       ]
     },
     {
-      "username": "are_yoo_atharv",
-      "password": "ninjaturtles",
+      "username": "riti.ka.002",
+      "password": "internship",
       "proxies": [
-        "46.203.56.239:5726:rubjznrn:ihdzbirrms7a",
-        "9.142.209.133:5299:rubjznrn:ihdzbirrms7a",
-        "192.53.66.208:6314:rubjznrn:ihdzbirrms7a",
+        "130.180.234.182:7405:rubjznrn:ihdzbirrms7a",
+        "138.226.76.16:7705:rubjznrn:ihdzbirrms7a",
+        "192.46.189.191:6184:rubjznrn:ihdzbirrms7a",
+        "193.160.83.66:6387:rubjznrn:ihdzbirrms7a",
+        "46.203.56.239:5726:rubjznrn:ihdzbirrms7a"
+      ]
+    },
+    {
+      "username": "ras.hi._003",
+      "password": "internship",
+      "proxies": [
+        "193.160.83.93:6414:rubjznrn:ihdzbirrms7a",
+        "46.203.56.219:5706:rubjznrn:ihdzbirrms7a",
+        "45.56.183.96:8418:rubjznrn:ihdzbirrms7a",
+        "138.226.71.215:7405:rubjznrn:ihdzbirrms7a",
+        "9.142.209.133:5299:rubjznrn:ihdzbirrms7a"
+      ]
+    },
+    {
+      "username": "rash.mika.005",
+      "password": "internship",
+      "proxies": [
         "64.52.30.11:6698:rubjznrn:ihdzbirrms7a",
         "192.53.138.220:6158:rubjznrn:ihdzbirrms7a",
         "9.142.195.237:6405:rubjznrn:ihdzbirrms7a",
-        "9.142.8.210:5867:rubjznrn:ihdzbirrms7a"
+        "9.142.8.210:5867:rubjznrn:ihdzbirrms7a",
+        "192.53.66.208:6314:rubjznrn:ihdzbirrms7a"
       ]
     }
   ],
@@ -51,6 +57,7 @@
       "min": 5,
       "max": 7
     },
-    "pauseAfterComments": 50
+    "pauseAfterComments": 20,
+    "pauseDurationMinutes": 30
   }
 }

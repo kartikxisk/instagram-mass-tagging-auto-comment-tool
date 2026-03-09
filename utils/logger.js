@@ -1,28 +1,21 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
+
+const { getLogsPath } = require("./paths");
 
 /**
  * Get the logs directory path
- * Uses Electron's userData path when packaged, otherwise project root
  */
 function getLogsDir() {
-  try {
-    const { app } = require('electron');
-    if (app && app.isPackaged) {
-      return path.join(app.getPath('userData'), 'logs');
-    }
-  } catch (e) {
-    // Not in Electron context
-  }
-  return path.join(__dirname, '..', 'logs');
+  return getLogsPath();
 }
 
 // Create date-wise folder for logs
 const today = new Date();
-const dateFolder = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const dateFolder = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 const LOGS_DIR = path.join(getLogsDir(), dateFolder);
-const logFilePath = path.join(LOGS_DIR, 'mention_logs.csv');
-const summaryFilePath = path.join(LOGS_DIR, 'session_summary.json');
+const logFilePath = path.join(LOGS_DIR, "mention_logs.csv");
+const summaryFilePath = path.join(LOGS_DIR, "session_summary.json");
 
 // Ensure date-wise logs directory exists
 if (!fs.existsSync(LOGS_DIR)) {
@@ -32,8 +25,8 @@ if (!fs.existsSync(LOGS_DIR)) {
 // Function to initialize the log file with headers if not exists
 function initializeLogFile() {
   if (!fs.existsSync(logFilePath)) {
-    const headers = 'timestamp,account,proxy,status,comment,tags_count,error\n';
-    fs.writeFileSync(logFilePath, headers, 'utf8');
+    const headers = "timestamp,account,proxy,status,comment,tags_count,error\n";
+    fs.writeFileSync(logFilePath, headers, "utf8");
   }
 }
 
@@ -41,12 +34,12 @@ function initializeLogFile() {
  * Status types for logging
  */
 const STATUS = {
-  SUCCESS: 'Success',
-  FAILED: 'Failed',
-  BLOCKED: 'Blocked',
-  CHECKPOINT: 'Checkpoint',
-  LOGIN_FAILED: 'Login Failed',
-  COMMENT_FAILED: 'Comment Failed'
+  SUCCESS: "Success",
+  FAILED: "Failed",
+  BLOCKED: "Blocked",
+  CHECKPOINT: "Checkpoint",
+  LOGIN_FAILED: "Login Failed",
+  COMMENT_FAILED: "Comment Failed",
 };
 
 /**
@@ -60,15 +53,22 @@ const STATUS = {
  * @param {number} details.tagsCount - Number of tags in comment.
  * @param {string} details.error - Error message (if any).
  */
-function logMention({ account = '', proxy = '', status = '', comment = '', tagsCount = 0, error = '' }) {
+function logMention({
+  account = "",
+  proxy = "",
+  status = "",
+  comment = "",
+  tagsCount = 0,
+  error = "",
+}) {
   initializeLogFile();
 
   const timestamp = new Date().toISOString();
-  const sanitizedComment = comment.replace(/"/g, '""').replace(/\n/g, ' ');
-  const sanitizedError = error.replace(/"/g, '""').replace(/\n/g, ' ');
+  const sanitizedComment = comment.replace(/"/g, '""').replace(/\n/g, " ");
+  const sanitizedError = error.replace(/"/g, '""').replace(/\n/g, " ");
   const logEntry = `"${timestamp}","${account}","${proxy}","${status}","${sanitizedComment}","${tagsCount}","${sanitizedError}"\n`;
 
-  fs.appendFileSync(logFilePath, logEntry, 'utf8');
+  fs.appendFileSync(logFilePath, logEntry, "utf8");
 }
 
 /**
@@ -102,11 +102,15 @@ class SessionStats {
    * Record a failed comment
    * @param {string} error - Error message
    */
-  recordFailure(error = '') {
+  recordFailure(error = "") {
     this.totalComments++;
     this.failedComments++;
     if (error) {
-      this.errors.push({ type: 'comment_failed', error, timestamp: new Date().toISOString() });
+      this.errors.push({
+        type: "comment_failed",
+        error,
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 
@@ -116,7 +120,11 @@ class SessionStats {
    */
   recordBlocked(account) {
     this.blockedAccounts++;
-    this.errors.push({ type: 'blocked', account, timestamp: new Date().toISOString() });
+    this.errors.push({
+      type: "blocked",
+      account,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   /**
@@ -125,7 +133,11 @@ class SessionStats {
    */
   recordCheckpoint(account) {
     this.checkpointAccounts++;
-    this.errors.push({ type: 'checkpoint', account, timestamp: new Date().toISOString() });
+    this.errors.push({
+      type: "checkpoint",
+      account,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   /**
@@ -133,9 +145,14 @@ class SessionStats {
    * @param {string} account - Account username
    * @param {string} error - Error message
    */
-  recordLoginFailure(account, error = '') {
+  recordLoginFailure(account, error = "") {
     this.loginFailures++;
-    this.errors.push({ type: 'login_failed', account, error, timestamp: new Date().toISOString() });
+    this.errors.push({
+      type: "login_failed",
+      account,
+      error,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   /**
@@ -161,13 +178,15 @@ class SessionStats {
       totalComments: this.totalComments,
       successfulComments: this.successfulComments,
       failedComments: this.failedComments,
-      successRate: this.totalComments > 0 ? 
-        Math.round((this.successfulComments / this.totalComments) * 100) : 0,
+      successRate:
+        this.totalComments > 0
+          ? Math.round((this.successfulComments / this.totalComments) * 100)
+          : 0,
       totalTags: this.totalTags,
       blockedAccounts: this.blockedAccounts,
       checkpointAccounts: this.checkpointAccounts,
       loginFailures: this.loginFailures,
-      errors: this.errors.slice(-50) // Keep last 50 errors
+      errors: this.errors.slice(-50), // Keep last 50 errors
     };
   }
 
@@ -176,7 +195,7 @@ class SessionStats {
    */
   saveSummary() {
     const summary = this.getSummary();
-    fs.writeFileSync(summaryFilePath, JSON.stringify(summary, null, 2), 'utf8');
+    fs.writeFileSync(summaryFilePath, JSON.stringify(summary, null, 2), "utf8");
     console.log(`📊 Session summary saved to ${summaryFilePath}`);
     return summary;
   }
@@ -186,9 +205,9 @@ class SessionStats {
    */
   printSummary() {
     const summary = this.getSummary();
-    console.log('\n' + '='.repeat(50));
-    console.log('📊 SESSION SUMMARY');
-    console.log('='.repeat(50));
+    console.log("\n" + "=".repeat(50));
+    console.log("📊 SESSION SUMMARY");
+    console.log("=".repeat(50));
     console.log(`⏱️  Duration: ${summary.durationMinutes} minutes`);
     console.log(`👥 Accounts Processed: ${summary.accountsProcessed}`);
     console.log(`💬 Total Comments: ${summary.totalComments}`);
@@ -199,13 +218,13 @@ class SessionStats {
     console.log(`🚫 Blocked Accounts: ${summary.blockedAccounts}`);
     console.log(`⚠️  Checkpoint Accounts: ${summary.checkpointAccounts}`);
     console.log(`🔐 Login Failures: ${summary.loginFailures}`);
-    console.log('='.repeat(50) + '\n');
+    console.log("=".repeat(50) + "\n");
   }
 }
 
-module.exports = { 
-  logMention, 
-  SessionStats, 
+module.exports = {
+  logMention,
+  SessionStats,
   STATUS,
-  initializeLogFile 
+  initializeLogFile,
 };

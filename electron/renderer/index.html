@@ -66,10 +66,7 @@
               <span class="stat-value" id="tracker-total-tagged">0</span>
               <span class="stat-label">Tagged</span>
             </div>
-            <div class="stat-card">
-              <span class="stat-value" id="tracker-success-rate">0%</span>
-              <span class="stat-label">Success</span>
-            </div>
+            <!-- Success rate removed -->
           </div>
           <div class="tracker-actions" style="margin-top: var(--spacing-sm);">
             <button id="btn-refresh-tracker" class="btn btn-small">
@@ -225,7 +222,11 @@
                 <h3>Safety Settings</h3>
                 <div class="setting-row">
                   <label for="setting-pause-after">Pause after X Comments</label>
-                  <input type="number" id="setting-pause-after" value="50" min="10" max="200">
+                  <input type="number" id="setting-pause-after" value="20" min="5" max="200">
+                </div>
+                <div class="setting-row">
+                  <label for="setting-pause-duration">Pause Duration (minutes)</label>
+                  <input type="number" id="setting-pause-duration" value="30" min="5" max="120">
                 </div>
                 <div class="setting-row">
                   <label for="setting-headless">Run Headless (Hidden Browser)</label>

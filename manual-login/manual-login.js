@@ -243,24 +243,9 @@ function askUserToContinue(message) {
 
     try {
       console.log(`🌐 Navigating to Instagram login page for ${username}...`);
-      
-      // Use centralized login helper to fill the form
-      const fillResult = await loginHelper.fillLoginForm(page, { username, password });
-      
-      if (!fillResult.success) {
-        throw new Error(fillResult.error || 'Failed to fill login form');
-      }
-      
-      console.log(`📝 Detected ${fillResult.formVersion} login form`);
-      console.log(`🧠 Credentials filled for ${username}`);
-      
-      // Click the login button
-      await loginHelper.clickLoginButton(page, fillResult.formVersion);
-      console.log(`🔘 Login button clicked`);
+      await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2', timeout: 60000 });
 
-      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
-
-      console.log('⏳ Please complete any verification (2FA, checkpoint, etc.) manually if shown.');
+      console.log('⏳ Please login manually in the opened browser and complete any verification (2FA, checkpoint).');
       await askUserToContinue('✅ Once logged in and feed is visible, press ENTER to save cookies...');
 
       const cookies = await page.cookies();
