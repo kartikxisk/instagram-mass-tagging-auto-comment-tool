@@ -1,6 +1,7 @@
 // tests/tagDistribution.test.js
 // Node.js built‑in test runner (node --test)
-const { test, describe, expect } = require('node:test');
+const { test, describe } = require('node:test');
+const assert = require('node:assert').strict;
 const {
   shuffleArray,
   splitTagsIntoGroups,
@@ -14,15 +15,15 @@ describe('tagDistribution utilities', () => {
     const original = [1, 2, 3, 4, 5];
     const shuffled = shuffleArray(original);
     // Same length
-    expect(shuffled.length).toBe(original.length);
+    assert.strictEqual(shuffled.length, original.length);
     // Same elements after sorting
-    expect([...shuffled].sort()).toEqual([...original].sort());
+    assert.deepStrictEqual([...shuffled].sort(), [...original].sort());
   });
 
   test('splitTagsIntoGroups splits correctly', () => {
     const tags = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
     const groups = splitTagsIntoGroups(tags, 3);
-    expect(groups).toEqual([
+    assert.deepStrictEqual(groups, [
       ['a', 'b', 'c'],
       ['d', 'e', 'f'],
       ['g']
@@ -32,9 +33,9 @@ describe('tagDistribution utilities', () => {
   test('getRandomTagsForAccount returns subset of requested size', () => {
     const all = Array.from({ length: 10 }, (_, i) => `user${i}`);
     const subset = getRandomTagsForAccount(all, 5);
-    expect(subset.length).toBe(5);
+    assert.strictEqual(subset.length, 5);
     // All returned tags must be in the original list
-    subset.forEach(tag => expect(all).toContain(tag));
+    subset.forEach(tag => assert.ok(all.includes(tag)));
   });
 
   test('generateAccountCommentBatches respects min/max tags per comment', () => {
@@ -43,28 +44,28 @@ describe('tagDistribution utilities', () => {
     const { commentBatches } = generateAccountCommentBatches(tags, config);
     // Total tags across all batches equals original count
     const total = commentBatches.reduce((sum, batch) => sum + batch.length, 0);
-    expect(total).toBe(tags.length);
+    assert.strictEqual(total, tags.length);
     // Each batch length should be within allowed range (or at least half of min after merge)
     const minHalf = Math.floor(config.tagsPerComment.min / 2);
     commentBatches.forEach(batch => {
-      expect(batch.length).toBeGreaterThanOrEqual(minHalf);
-      expect(batch.length).toBeLessThanOrEqual(config.tagsPerComment.max);
+      assert.ok(batch.length >= minHalf);
+      assert.ok(batch.length <= config.tagsPerComment.max);
     });
   });
 
   test('buildCommentString creates correct format without suffix', () => {
     const tags = ['alice', 'bob'];
     const comment = buildCommentString(tags, false);
-    expect(comment).toBe('@alice @bob');
+    assert.strictEqual(comment, '@alice @bob');
   });
 
   test('buildCommentString may add suffix when enabled', () => {
     const tags = ['alice', 'bob'];
     const comment = buildCommentString(tags, true);
     // Should start with tags
-    expect(comment.startsWith('@alice @bob')).toBe(true);
+    assert.ok(comment.startsWith('@alice @bob'));
     // May have extra suffix after a space
     const parts = comment.split(' ');
-    expect(parts.length).toBeGreaterThanOrEqual(2);
+    assert.ok(parts.length >= 2);
   });
 });

@@ -20,7 +20,6 @@
     "tracker:export": "node utils/globalTagTracker.js export",
     "fix": "node -e \"const os = require('os'); const fs = require('fs'); const { execSync } = require('child_process'); const isWin = os.platform() === 'win32'; const script = isWin ? '.\\\\fix.bat' : './fix.sh'; try { if (!isWin) { fs.chmodSync(script, '0755'); } execSync(script, { stdio: 'inherit' }); } catch(e) { console.error('Fix script execution failed:', e.message); process.exit(1); }\"",
     "test": "node --test"
-
   },
   "build": {
     "appId": "com.instabot.masstagger",
@@ -90,6 +89,7 @@
   },
   "devDependencies": {
     "electron": "^33.0.0",
+    "electron-builder": "^26.8.1",
     "playwright": "^1.45.0"
   },
   "pnpm": {
