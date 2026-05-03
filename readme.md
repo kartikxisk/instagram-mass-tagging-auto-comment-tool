@@ -14,7 +14,6 @@
 ## 📋 Table of Contents
 
 - [Features](#-features)
-- [Video Demo](#-video-demo)
 - [Screenshots](#-screenshots)
 - [Installation](#-installation)
 - [Quick Start](#-quick-start)
@@ -43,14 +42,6 @@
 - **Human‑like behavior** – random delays, typing simulation, scrolling, user‑agent rotation
 - **Safety limits** – random comment delays (35‑120 s), session caps (5‑15 min), long pauses after 50 comments
 - **Comprehensive logging** – CSV logs, JSON session summaries, Excel username import
-
----
-
-## 🎥 Video Demo
-
-A step‑by‑step walkthrough (setup, configuration, and live run) is available here:
-
-**[Instagram Mass Tagging Tool – Demo (YouTube)](https://www.youtube.com/watch?v=PLACEHOLDER)** *(link to be replaced with actual video)*
 
 ---
 
