@@ -1,0 +1,16 @@
+{
+  "settings": {
+    "parallelAccounts": 100,
+    "accountsPerBatch": 100,
+    "tagsPerComment": {
+      "min": 7,
+      "max": 10
+    },
+    "commentsPerAccount": {
+      "min": 5,
+      "max": 7
+    },
+    "pauseAfterComments": 20,
+    "pauseDurationMinutes": 30
+  }
+}

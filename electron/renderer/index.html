@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
+  <title>Instagram Mass Tagging Tool</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Title Bar (for macOS hidden title bar) -->
+    <div class="title-bar">
+      <div class="title-bar-drag"></div>
+      <h1 class="app-title">Instagram Mass Tagging Tool</h1>
+      <span class="version-badge" id="version-badge">v1.0.0</span>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Left Panel - Controls -->
+      <div class="left-panel">
+        <!-- Excel File Section -->
+        <div class="section">
+          <h2 class="section-title">
+            📊 Comments Excel File
+            <span class="required-badge">Required</span>
+            <button class="help-icon" data-help="excel">❓</button>
+          </h2>
+          <div class="input-group">
+            <div class="file-input-wrapper">
+              <input type="text" id="excel-file-path" placeholder="Select usernames.xlsx file..." class="input-field" readonly>
+              <button id="btn-select-excel" class="btn btn-secondary btn-file">Browse</button>
+            </div>
+            <span class="input-hint">Excel file with columns: Username, Is Mentionable</span>
+            <div id="total-tags-info" class="tags-info-box" style="display: none;">
+              📊 Total mentionable users: <strong id="total-tags-count">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Target Post Section -->
+        <div class="section">
+          <h2 class="section-title">
+            📍 Target Post
+            <span class="required-badge">Required</span>
+          </h2>
+          <div class="input-group">
+            <input type="text" id="target-post" placeholder="https://www.instagram.com/reel/..." class="input-field">
+          </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="section">
+          <h2 class="section-title">📊 Statistics & Tracker</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-value" id="stat-accounts">0</span>
+              <span class="stat-label">Accounts</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="stat-comments">0</span>
+              <span class="stat-label">Comments</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="tracker-total-tagged">0</span>
+              <span class="stat-label">Tagged</span>
+            </div>
+            <!-- Success rate removed -->
+          </div>
+          <div class="tracker-actions" style="margin-top: var(--spacing-sm);">
+            <button id="btn-refresh-tracker" class="btn btn-small">
+              🔄 Refresh
+            </button>
+            <button id="btn-reset-tracker" class="btn btn-small btn-danger">
+              🔄 Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="section">
+          <h2 class="section-title">🎮 Controls</h2>
+          <div class="controls-grid">
+            <button id="btn-start" class="btn btn-primary btn-large">
+              <span class="btn-icon">▶</span>
+              Start
+            </button>
+            <button id="btn-stop" class="btn btn-danger btn-large" disabled>
+              <span class="btn-icon">⏹</span>
+              Stop
+            </button>
+          </div>
+          <div class="status-bar">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span class="status-text" id="status-text">Ready</span>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="section">
+          <h2 class="section-title">⚡ Quick Actions</h2>
+          <div class="actions-grid-row">
+            <button id="btn-check-proxies" class="btn btn-secondary">
+              Check Proxies
+            </button>
+            <button id="btn-open-logs" class="btn btn-secondary">
+              Open Logs
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Panel - Tabs -->
+      <div class="right-panel">
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+          <button class="tab-btn active" data-tab="logs">📜 Logs</button>
+          <button class="tab-btn" data-tab="accounts">👥 Accounts</button>
+          <button class="tab-btn" data-tab="proxies">🌐 Proxies</button>
+          <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+          <!-- Logs Tab -->
+          <div class="tab-pane active" id="tab-logs">
+            <div class="logs-container" id="logs-container">
+              <div class="log-entry log-info">
+                <span class="log-time">--:--:--</span>
+                <span class="log-message">Welcome! Configure your settings and click Start to begin.</span>
+              </div>
+            </div>
+            <div class="logs-actions">
+              <button id="btn-clear-logs" class="btn btn-small">Clear Logs</button>
+              <label class="checkbox-label">
+                <input type="checkbox" id="auto-scroll" checked>
+                Auto-scroll
+              </label>
+            </div>
+          </div>
+
+          <!-- Accounts Tab -->
+          <div class="tab-pane" id="tab-accounts">
+            <div class="accounts-header">
+              <span class="accounts-count">Accounts: <strong id="accounts-count">0</strong></span>
+              <div class="accounts-actions">
+                <button id="btn-import-accounts" class="btn btn-small">📥 Import</button>
+                <button id="btn-export-accounts" class="btn btn-small">📤 Export</button>
+                <button id="btn-import-sessions" class="btn btn-small">🔄 Import Sessions</button>
+                <button id="btn-export-sessions" class="btn btn-small">💾 Export Sessions</button>
+                <button id="btn-add-account" class="btn btn-small btn-primary">+ Add</button>
+              </div>
+            </div>
+            <div class="accounts-list" id="accounts-list">
+              <!-- Accounts will be populated here -->
+            </div>
+          </div>
+
+          <!-- Proxies Tab -->
+          <div class="tab-pane" id="tab-proxies">
+            <div class="proxies-header">
+              <span class="proxies-count">
+                Active: <strong id="proxies-active-count">0</strong> | 
+                Flagged: <strong id="proxies-flagged-count" class="text-warning">0</strong>
+              </span>
+              <div class="proxies-actions">
+                <button id="btn-refresh-proxies" class="btn btn-small">🔄 Refresh</button>
+                <button id="btn-clear-flagged" class="btn btn-small btn-danger">🗑️ Clear Flagged</button>
+              </div>
+            </div>
+            <div class="proxies-info-box">
+              <p>ℹ️ Proxies are automatically flagged when suspicious activity is detected (rate limits, checkpoints, blocks).</p>
+              <p>Flagged proxies are skipped - the bot automatically switches to the next available proxy for the account.</p>
+            </div>
+            <div class="proxies-list" id="proxies-list">
+              <!-- Proxies will be populated here -->
+            </div>
+          </div>
+
+          <!-- Settings Tab -->
+          <div class="tab-pane" id="tab-settings">
+            <div class="settings-form">
+              <div class="settings-group">
+                <h3>Parallel Execution</h3>
+                <div class="setting-row">
+                  <label for="setting-parallel-accounts">Parallel Accounts</label>
+                  <input type="number" id="setting-parallel-accounts" value="3" min="1" max="10">
+                  <small class="setting-hint">How many accounts run simultaneously (more = faster but more resources)</small>
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Batch Settings</h3>
+                <div class="setting-row">
+                  <label for="setting-batch-size">Accounts per Batch</label>
+                  <input type="number" id="setting-batch-size" value="100" min="1" max="500">
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Comment Settings</h3>
+                <div class="setting-row">
+                  <label for="setting-tags-min">Tags per Comment (Min)</label>
+                  <input type="number" id="setting-tags-min" value="10" min="1" max="20">
+                </div>
+                <div class="setting-row">
+                  <label for="setting-tags-max">Tags per Comment (Max)</label>
+                  <input type="number" id="setting-tags-max" value="12" min="1" max="20">
+                </div>
+                <div class="setting-row">
+                  <label for="setting-comments-min">Comments per Account (Min)</label>
+                  <input type="number" id="setting-comments-min" value="5" min="1" max="20">
+                </div>
+                <div class="setting-row">
+                  <label for="setting-comments-max">Comments per Account (Max)</label>
+                  <input type="number" id="setting-comments-max" value="7" min="1" max="20">
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Safety Settings</h3>
+                <div class="setting-row">
+                  <label for="setting-pause-after">Pause after X Comments</label>
+                  <input type="number" id="setting-pause-after" value="20" min="5" max="200">
+                </div>
+                <div class="setting-row">
+                  <label for="setting-pause-duration">Pause Duration (minutes)</label>
+                  <input type="number" id="setting-pause-duration" value="30" min="5" max="120">
+                </div>
+                <div class="setting-row">
+                  <label for="setting-headless">Run Headless (Hidden Browser)</label>
+                  <input type="checkbox" id="setting-headless" checked>
+                </div>
+              </div>
+
+              <div class="settings-actions">
+                <button id="btn-save-settings" class="btn btn-primary">💾 Save Settings</button>
+                <button id="btn-reset-settings" class="btn btn-secondary">↩️ Reset to Defaults</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Account Modal -->
+  <div class="modal" id="modal-add-account">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Add Account</h2>
+        <button class="modal-close" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="new-account-username">Username</label>
+          <input type="text" id="new-account-username" placeholder="instagram_username">
+        </div>
+        <div class="input-group">
+          <label for="new-account-password">Password</label>
+          <input type="password" id="new-account-password" placeholder="password">
+        </div>
+        <div class="input-group">
+          <label>Account Proxies (Optional)</label>
+          <small class="input-hint">Add proxies specific to this account. One per line: address:port:username:password or address:port</small>
+          <textarea id="new-account-proxies" placeholder="192.168.1.1:8080:user:pass&#10;192.168.1.2:8080" rows="4" class="input-field"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal>Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-add-account">Add Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Account Proxies Modal -->
+  <div class="modal" id="modal-edit-proxies">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit Account Proxies</h2>
+        <button class="modal-close" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Account: <strong id="edit-proxies-account"></strong></label>
+        </div>
+        <div class="input-group">
+          <label>Proxies (One per line)</label>
+          <small class="input-hint">Format: address:port:username:password or address:port</small>
+          <textarea id="edit-account-proxies" placeholder="192.168.1.1:8080:user:pass&#10;192.168.1.2:8080" rows="6" class="input-field"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal>Cancel</button>
+        <button class="btn btn-primary" id="btn-save-account-proxies">Save Proxies</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div class="modal" id="modal-help">
+    <div class="modal-content modal-help-content">
+      <div class="modal-header">
+        <h2>📚 Help</h2>
+        <button class="modal-close" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="help-section" id="help-excel">
+          <h3>📊 Excel File Format</h3>
+          <p>The Excel file should contain usernames to tag in comments. Required columns:</p>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Column Name</th>
+                <th>Description</th>
+                <th>Example</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Username</code></td>
+                <td>Instagram username (without @)</td>
+                <td>john_doe</td>
+              </tr>
+              <tr>
+                <td><code>Is Mentionable</code></td>
+                <td>TRUE/FALSE - whether to include this user</td>
+                <td>TRUE</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="help-example">
+            <strong>Example Excel:</strong>
+            <pre>| Username      | Is Mentionable |
+|---------------|----------------|
+| user1         | TRUE           |
+| user2         | TRUE           |
+| spammy_user   | FALSE          |</pre>
+          </div>
+        </div>
+
+        <div class="help-section" id="help-general">
+          <h3>🚀 How It Works</h3>
+          <ol>
+            <li><strong>Select Excel File</strong> - Choose your file with usernames to tag</li>
+            <li><strong>Enter Target Post</strong> - Paste the Instagram reel/post URL</li>
+            <li><strong>Configure Accounts</strong> - Add Instagram accounts in the Accounts tab</li>
+            <li><strong>Add Proxies</strong> - (Optional) Add proxies for safety</li>
+            <li><strong>Start Automation</strong> - Click Start and monitor the logs</li>
+          </ol>
+
+          <h3>⚙️ Settings Explained</h3>
+          <ul>
+            <li><strong>Accounts per Batch:</strong> How many accounts to process before a longer break</li>
+            <li><strong>Tags per Account:</strong> Maximum tags each account will post</li>
+            <li><strong>Tags per Comment:</strong> Number of @mentions in each comment</li>
+            <li><strong>Comments per Account:</strong> Number of comments each account will post</li>
+            <li><strong>Pause after X Comments:</strong> Take a long break after this many total comments</li>
+            <li><strong>Run Headless:</strong> Hide the browser window (recommended for production)</li>
+          </ul>
+
+          <h3>🛡️ Safety Features</h3>
+          <ul>
+            <li>Random delays between comments (35-120 seconds)</li>
+            <li>Random delays between accounts (5-20 seconds)</li>
+            <li>Long pause after 50 comments (10-20 minutes)</li>
+            <li>Human-like typing and scrolling behavior</li>
+            <li>Automatic detection of blocked/checkpoint accounts</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" data-close-modal>Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Login Modal -->
+  <div class="modal" id="modal-manual-login">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h2>🔐 Manual Login</h2>
+        <button class="modal-close" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="manual-login-status" class="login-status">
+          Click the button below to open a browser window. Your credentials will be auto-filled.
+        </p>
+        <div class="login-account-info">
+          <span class="label">Account:</span>
+          <span id="manual-login-account" class="account-name">-</span>
+        </div>
+        <div class="login-instructions">
+          <h4>What happens:</h4>
+          <ol>
+            <li>A browser window opens with Instagram login</li>
+            <li>Your username & password are auto-filled</li>
+            <li>Login is submitted automatically</li>
+            <li>Complete any 2FA/verification if prompted</li>
+            <li>Cookies are saved once you reach the home page</li>
+          </ol>
+        </div>
+        <div class="login-progress" id="login-progress" style="display: none;">
+          <div class="spinner"></div>
+          <span id="login-progress-text">Opening browser...</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal>Cancel</button>
+        <button class="btn btn-primary" id="btn-open-login-browser">🌐 Open Browser</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+{
+  "name": "instagram-mass-tagger",
+  "version": "1.0.0",
+  "description": "Instagram Mass Tagging Desktop Application",
+  "main": "electron/main.js",
+  "scripts": {
+    "demo:video": "node demo/playwright-demo.js",
+    "release": "npm run build:mac && npm run build:win && npm run build:linux",
+    "start": "node main.js",
+    "electron": "electron .",
+    "electron:dev": "NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "proxy-check": "node utils/proxyChecker.js",
+    "browser": "npx puppeteer browsers install chrome",
+    "tracker:reset": "node utils/globalTagTracker.js reset",
+    "tracker:stats": "node utils/globalTagTracker.js stats",
+    "tracker:export": "node utils/globalTagTracker.js export",
+    "fix": "node -e \"const os = require('os'); const fs = require('fs'); const { execSync } = require('child_process'); const isWin = os.platform() === 'win32'; const script = isWin ? '.\\\\fix.bat' : './fix.sh'; try { if (!isWin) { fs.chmodSync(script, '0755'); } execSync(script, { stdio: 'inherit' }); } catch(e) { console.error('Fix script execution failed:', e.message); process.exit(1); }\"",
+    "test": "node --test"
+
+  },
+  "build": {
+    "appId": "com.instabot.masstagger",
+    "productName": "Instagram Mass Tagger",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "utils/**/*",
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "config/default-settings.json",
+        "to": "config/default-settings.json"
+      },
+      {
+        "from": "samples",
+        "to": "samples"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
+  },
+  "keywords": [
+    "instagram",
+    "automation",
+    "tagging",
+    "electron"
+  ],
+  "author": "Tanishk Dhaka",
+  "license": "ISC",
+  "packageManager": "pnpm@10.4.1",
+  "dependencies": {
+    "axios": "^1.8.4",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^16.4.7",
+    "https-proxy-agent": "^7.0.6",
+    "json2csv": "6.0.0-alpha.2",
+    "lodash": "^4.17.21",
+    "puppeteer": "^24.4.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "playwright": "^1.45.0"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "electron",
+      "puppeteer"
+    ],
+    "onlyBuiltDependencies": [
+      "electron",
+      "puppeteer"
+    ]
+  }
+}
