@@ -252,10 +252,10 @@ Distributed under the **ISC License** – see the [LICENSE](LICENSE) file for de
 
 ## 👨‍💻 Author
 
-**Tanishk Dhaka** – Developer & Automation Specialist
+**Kartik Kumar** – Developer & Automation Specialist
 - 📍 Delhi, India
-- 🔗 [GitHub](https://github.com/yourusername)
-- 📧 your.email@example.com
+- 🔗 [GitHub](https://github.com/kartkxisk)
+- 📧 ki.kartik11@gmail.com
 
 ---
 
